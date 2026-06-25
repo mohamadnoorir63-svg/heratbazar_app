@@ -10,6 +10,7 @@ const authRoutes = require('./routes/auth');
 const chatRoutes = require('./routes/chat');
 const adminRoutes = require('./routes/admin');
 const usersRoutes = require('./routes/users');
+const groupRoutes = require('./routes/group');
 
 const app = express();
 
@@ -25,6 +26,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/users', usersRoutes);
+app.use('/api/group', groupRoutes);
 
 const PORT = process.env.PORT || 4001;
 app.listen(PORT, () => {

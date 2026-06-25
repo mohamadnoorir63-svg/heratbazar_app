@@ -224,4 +224,79 @@ router.patch('/users/:id/unverify', requireAdmin, async (req, res) => {
   }
 });
 
+
+
+router.get('/reports', requireAdmin, async (req, res) => {
+  try {
+    const status = req.query.status || 'pending';
+
+    const result = await db.query(
+      `
+      SELECT
+        r.*,
+        a.title AS ad_title,
+        a.image_url AS ad_image_url,
+        a.phone AS ad_phone,
+        a.province,
+        a.district
+      FROM ad_reports r
+      LEFT JOIN ads a ON a.id = r.ad_id
+      WHERE ($1 = 'all' OR r.status = $1)
+      ORDER BY r.created_at DESC
+      LIMIT 500
+      `,
+      [status]
+    );
+
+    res.json({
+      success: true,
+      reports: result.rows
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.patch('/reports/:id/status', requireAdmin, async (req, res) => {
+  try {
+    const reportId = req.params.id;
+    const status = String(req.body.status || '').trim();
+
+    const allowed = ['pending', 'reviewed', 'dismissed'];
+
+    if (!allowed.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        error: 'status must be pending, reviewed or dismissed'
+      });
+    }
+
+    const result = await db.query(
+      `
+      UPDATE ad_reports
+      SET status = $1,
+          reviewed_at = CASE WHEN $1 = 'pending' THEN NULL ELSE CURRENT_TIMESTAMP END,
+          reviewed_by = CASE WHEN $1 = 'pending' THEN NULL ELSE $2 END
+      WHERE id = $3
+      RETURNING *
+      `,
+      [status, req.admin.phone || 'owner', reportId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'report not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      report: result.rows[0]
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 module.exports = router;

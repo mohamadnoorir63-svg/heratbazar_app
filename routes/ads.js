@@ -348,4 +348,50 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+
+
+router.post('/:id/report', async (req, res) => {
+  try {
+    const adId = req.params.id;
+    const reporterPhone = req.body.reporter_phone || req.query.reporter_phone || null;
+    const reason = String(req.body.reason || '').trim();
+
+    if (!reason) {
+      return res.status(400).json({
+        success: false,
+        error: 'reason required'
+      });
+    }
+
+    const adCheck = await db.query(
+      'SELECT id FROM ads WHERE id = $1',
+      [adId]
+    );
+
+    if (adCheck.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'ad not found'
+      });
+    }
+
+    const result = await db.query(
+      `
+      INSERT INTO ad_reports(ad_id, reporter_phone, reason)
+      VALUES($1, $2, $3)
+      RETURNING *
+      `,
+      [adId, reporterPhone, reason]
+    );
+
+    res.json({
+      success: true,
+      report: result.rows[0],
+      message: 'گزارش شما ثبت شد'
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 module.exports = router;

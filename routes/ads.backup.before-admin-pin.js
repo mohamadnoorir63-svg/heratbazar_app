@@ -1,32 +1,5 @@
 const router = require('express').Router();
-const jwt = require('jsonwebtoken');
 const db = require('../db');
-
-function getBearerToken(req) {
-  const header = req.headers.authorization || req.headers.Authorization || '';
-  if (!header.startsWith('Bearer ')) return '';
-  return header.slice(7).trim();
-}
-
-function verifyAdmin(req) {
-  try {
-    const token = getBearerToken(req);
-    if (!token) return null;
-
-    const secret = String(process.env.ADMIN_JWT_SECRET || '');
-    if (!secret) return null;
-
-    const payload = jwt.verify(token, secret);
-
-    if (payload && payload.role === 'owner') {
-      return payload;
-    }
-
-    return null;
-  } catch (_) {
-    return null;
-  }
-}
 
 router.get('/', async (req, res) => {
   try {
@@ -43,10 +16,7 @@ router.get('/', async (req, res) => {
       LEFT JOIN categories ON categories.id = ads.category_id
       LEFT JOIN ad_images ON ad_images.ad_id = ads.id
       GROUP BY ads.id, categories.name
-      ORDER BY
-        ads.is_pinned DESC,
-        ads.pinned_at DESC NULLS LAST,
-        ads.id DESC
+      ORDER BY ads.id DESC
     `);
 
     res.json(result.rows);
@@ -107,6 +77,7 @@ router.post('/', async (req, res) => {
     ]);
 
     const ad = result.rows[0];
+
     const imageList = Array.isArray(images) ? images.slice(0, 20) : [];
 
     if (image_url && imageList.length === 0) {
@@ -123,6 +94,7 @@ router.post('/', async (req, res) => {
     }
 
     ad.images = imageList;
+
     res.json(ad);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -144,6 +116,7 @@ router.put('/:id', async (req, res) => {
       category_id,
       image_url,
       images,
+      owner_token,
       user_id
     } = req.body;
 
@@ -225,94 +198,16 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-router.patch('/:id/pin', async (req, res) => {
-  try {
-    const admin = verifyAdmin(req);
-
-    if (!admin) {
-      return res.status(403).json({
-        success: false,
-        error: 'admin token required'
-      });
-    }
-
-    const adId = req.params.id;
-
-    const result = await db.query(
-      `
-      UPDATE ads
-      SET is_pinned = true,
-          pinned_at = CURRENT_TIMESTAMP,
-          updated_at = CURRENT_TIMESTAMP
-      WHERE id = $1
-      RETURNING *
-      `,
-      [adId]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: 'ad not found'
-      });
-    }
-
-    res.json({
-      success: true,
-      ad: result.rows[0]
-    });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-router.patch('/:id/unpin', async (req, res) => {
-  try {
-    const admin = verifyAdmin(req);
-
-    if (!admin) {
-      return res.status(403).json({
-        success: false,
-        error: 'admin token required'
-      });
-    }
-
-    const adId = req.params.id;
-
-    const result = await db.query(
-      `
-      UPDATE ads
-      SET is_pinned = false,
-          pinned_at = NULL,
-          updated_at = CURRENT_TIMESTAMP
-      WHERE id = $1
-      RETURNING *
-      `,
-      [adId]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: 'ad not found'
-      });
-    }
-
-    res.json({
-      success: true,
-      ad: result.rows[0]
-    });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
 router.delete('/:id', async (req, res) => {
   try {
     const adId = req.params.id;
-    const admin = verifyAdmin(req);
 
+    const owner_token = req.body.owner_token || req.query.owner_token;
     const user_id = req.body.user_id || req.query.user_id;
+
+    if (!user_id) {
+      return res.status(400).json({ error: 'user_id required' });
+    }
 
     const check = await db.query(
       'SELECT * FROM ads WHERE id = $1',
@@ -330,19 +225,13 @@ router.delete('/:id', async (req, res) => {
       ad.user_id &&
       Number(ad.user_id) === Number(user_id);
 
-    if (!admin && !userOk) {
+    if (!userOk) {
       return res.status(403).json({ error: 'not allowed' });
     }
 
-    await db.query('DELETE FROM ad_images WHERE ad_id = $1', [adId]);
     await db.query('DELETE FROM ads WHERE id = $1', [adId]);
 
-    res.json({
-      ok: true,
-      success: true,
-      deleted_id: adId,
-      deleted_by: admin ? 'admin' : 'owner'
-    });
+    res.json({ ok: true, deleted_id: adId });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

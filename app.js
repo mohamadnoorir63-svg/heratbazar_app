@@ -8,6 +8,7 @@ const adsRoutes = require('./routes/ads');
 const uploadsRoutes = require('./routes/uploads');
 const authRoutes = require('./routes/auth');
 const chatRoutes = require('./routes/chat');
+const adminRoutes = require('./routes/admin');
 
 const app = express();
 
@@ -21,6 +22,7 @@ app.use('/api/ads', adsRoutes);
 app.use('/api/uploads', uploadsRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/admin', adminRoutes);
 
 const PORT = process.env.PORT || 4001;
 app.listen(PORT, () => {

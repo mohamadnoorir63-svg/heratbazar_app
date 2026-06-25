@@ -1,17 +1,12 @@
-import 'dart:convert';
 import 'dart:typed_data';
-
-import '../services/ad_owner_service.dart';
-import '../services/auth_service.dart';
-import 'login_page.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 
-const apiBase = "https://api.kooktalayi.com/heratbazar-api/api";
-const publicBase = "https://api.kooktalayi.com/heratbazar-api";
+import '../core/api.dart';
+import '../core/session.dart';
+import 'auth_page.dart';
 
 class CreateAdPage extends StatefulWidget {
   final Map? ad;
@@ -58,10 +53,21 @@ class _CreateAdPageState extends State<CreateAdPage> {
   final rentController = TextEditingController();
   final depositController = TextEditingController();
 
+  final propertyTypeController = TextEditingController();
+  final documentController = TextEditingController();
+  final facilityController = TextEditingController();
+  final directionController = TextEditingController();
+  final bathroomController = TextEditingController();
+  final kitchenController = TextEditingController();
+  final parkingController = TextEditingController();
+  final waterPowerController = TextEditingController();
+  final landUseController = TextEditingController();
+  final frontageController = TextEditingController();
+  final heightController = TextEditingController();
+
   final kmController = TextEditingController();
   final fuelController = TextEditingController();
   final gearController = TextEditingController();
-  final documentController = TextEditingController();
 
   final salaryController = TextEditingController();
   final workTimeController = TextEditingController();
@@ -69,7 +75,6 @@ class _CreateAdPageState extends State<CreateAdPage> {
 
   final List<XFile> selectedImages = [];
   final List<Uint8List> selectedImageBytes = [];
-
   final List<String> existingImageUrls = [];
 
   bool get isEditMode => widget.ad != null;
@@ -217,7 +222,6 @@ class _CreateAdPageState extends State<CreateAdPage> {
     "بامیان",
     "هلمند",
   ];
-
   final Map<String, List<String>> districts = {
     "هرات": [
       "مرکز هرات",
@@ -275,11 +279,7 @@ class _CreateAdPageState extends State<CreateAdPage> {
   }
 
   void fillPhoneFromLoggedUser() {
-    final user = AuthService.currentUser;
-
-    if (user == null) return;
-
-    final phone = user["phone"]?.toString() ?? "";
+    final phone = Session.userPhone;
 
     if (phone.isNotEmpty) {
       phoneController.text = phone;
@@ -288,9 +288,7 @@ class _CreateAdPageState extends State<CreateAdPage> {
 
   String adText(String key) {
     final value = widget.ad?[key];
-
     if (value == null) return "";
-
     return value.toString();
   }
 
@@ -304,23 +302,20 @@ class _CreateAdPageState extends State<CreateAdPage> {
 
     categoryId = int.tryParse(adText("category_id")) ?? 3;
 
-    final description = adText("description");
-
-    readDescription(description);
+    readDescription(adText("description"));
 
     final images = widget.ad?["images"];
 
     if (images is List) {
       for (final img in images) {
-        final url = img.toString();
-
+        final url = Api.fullImageUrl(img.toString());
         if (url.isNotEmpty && !existingImageUrls.contains(url)) {
           existingImageUrls.add(url);
         }
       }
     }
 
-    final imageUrl = adText("image_url");
+    final imageUrl = Api.fullImageUrl(adText("image_url"));
 
     if (imageUrl.isNotEmpty && !existingImageUrls.contains(imageUrl)) {
       existingImageUrls.insert(0, imageUrl);
@@ -338,6 +333,7 @@ class _CreateAdPageState extends State<CreateAdPage> {
 
     categorySelected = true;
   }
+
   void readDescription(String description) {
     final normalLines = <String>[];
 
@@ -374,7 +370,6 @@ class _CreateAdPageState extends State<CreateAdPage> {
         if (parts.length >= 2) {
           final key = parts.first.trim();
           final value = parts.sublist(1).join(":").trim();
-
           setFieldFromDescription(key, value);
         }
 
@@ -396,13 +391,17 @@ class _CreateAdPageState extends State<CreateAdPage> {
       yearController.text = value;
     } else if (key == "رنگ") {
       colorController.text = value;
+    } else if (key == "وضعیت") {
+      conditionController.text = value;
+    } else if (key == "اندازه/حافظه/ظرفیت") {
+      sizeController.text = value;
     } else if (key == "کیلومتر") {
       kmController.text = value;
     } else if (key == "تیل") {
       fuelController.text = value;
     } else if (key == "گیربکس") {
       gearController.text = value;
-    } else if (key == "اسناد/پلاک") {
+    } else if (key == "اسناد/پلاک" || key == "نوع سند") {
       documentController.text = value;
     } else if (key == "متراژ") {
       meterController.text = value;
@@ -414,12 +413,28 @@ class _CreateAdPageState extends State<CreateAdPage> {
       rentController.text = value;
     } else if (key == "گروی") {
       depositController.text = value;
+    } else if (key == "نوع ملک") {
+      propertyTypeController.text = value;
+    } else if (key == "امکانات") {
+      facilityController.text = value;
+    } else if (key == "جهت زمین") {
+      directionController.text = value;
+    } else if (key == "تعداد تشناب") {
+      bathroomController.text = value;
+    } else if (key == "آشپزخانه") {
+      kitchenController.text = value;
+    } else if (key == "پارکینگ") {
+      parkingController.text = value;
+    } else if (key == "آب و برق") {
+      waterPowerController.text = value;
+    } else if (key == "نوع استفاده زمین") {
+      landUseController.text = value;
+    } else if (key == "بر جاده") {
+      frontageController.text = value;
+    } else if (key == "ارتفاع") {
+      heightController.text = value;
     } else if (key == "آدرس دقیق" || key == "آدرس") {
       addressController.text = value;
-    } else if (key == "اندازه/حافظه/ظرفیت") {
-      sizeController.text = value;
-    } else if (key == "وضعیت") {
-      conditionController.text = value;
     } else if (key == "معاش/قیمت") {
       salaryController.text = value;
     } else if (key == "وقت کاری") {
@@ -450,6 +465,41 @@ class _CreateAdPageState extends State<CreateAdPage> {
 
     return 3;
   }
+  void clearCategoryFields() {
+    brandController.clear();
+    modelController.clear();
+    yearController.clear();
+    colorController.clear();
+    sizeController.clear();
+    conditionController.clear();
+
+    meterController.clear();
+    roomsController.clear();
+    floorController.clear();
+    addressController.clear();
+    rentController.clear();
+    depositController.clear();
+
+    propertyTypeController.clear();
+    documentController.clear();
+    facilityController.clear();
+    directionController.clear();
+    bathroomController.clear();
+    kitchenController.clear();
+    parkingController.clear();
+    waterPowerController.clear();
+    landUseController.clear();
+    frontageController.clear();
+    heightController.clear();
+
+    kmController.clear();
+    fuelController.clear();
+    gearController.clear();
+
+    salaryController.clear();
+    workTimeController.clear();
+    experienceController.clear();
+  }
 
   void selectCategory(String main, String sub) {
     setState(() {
@@ -457,24 +507,21 @@ class _CreateAdPageState extends State<CreateAdPage> {
       subCategory = sub;
       categoryId = getCategoryId(main, sub);
       categorySelected = true;
+
+      if (!isEditMode) {
+        clearCategoryFields();
+      }
     });
   }
 
   void backToCategories() {
-    if (isEditMode) {
-      setState(() {
-        categorySelected = false;
-      });
-      return;
-    }
-
     setState(() {
       categorySelected = false;
     });
   }
 
   Future<bool> ensureLoggedIn() async {
-    if (AuthService.isLoggedIn) {
+    if (Session.isLoggedIn) {
       fillPhoneFromLoggedUser();
       return true;
     }
@@ -482,17 +529,32 @@ class _CreateAdPageState extends State<CreateAdPage> {
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => const LoginPage(),
+        builder: (_) => const AuthPage(),
       ),
     );
 
-    if (result == true && AuthService.isLoggedIn) {
+    if (result == true && Session.isLoggedIn) {
       fillPhoneFromLoggedUser();
+      setState(() {});
       return true;
     }
 
-    showMessage("برای ثبت آگهی اول وارد حساب شوید");
+    showMessage("لطفاً وارد حساب خود شوید");
     return false;
+  }
+
+  Future<void> openAuthForChangeAccount() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const AuthPage(),
+      ),
+    );
+
+    if (result == true && Session.isLoggedIn) {
+      fillPhoneFromLoggedUser();
+      setState(() {});
+    }
   }
 
   Future<void> pickImages() async {
@@ -541,32 +603,11 @@ class _CreateAdPageState extends State<CreateAdPage> {
 
   Future<String?> uploadOneImage(XFile image) async {
     try {
-      final request = http.MultipartRequest(
-        "POST",
-        Uri.parse("$apiBase/uploads"),
+      return await Api.uploadImageBytes(
+        bytes: await image.readAsBytes(),
+        filename: image.name,
       );
-
-      request.files.add(
-        http.MultipartFile.fromBytes(
-          "image",
-          await image.readAsBytes(),
-          filename: image.name,
-        ),
-      );
-
-      final response = await request.send();
-      final body = await response.stream.bytesToString();
-
-      if (response.statusCode != 200) return null;
-
-      final data = jsonDecode(body);
-      final url = data["url"]?.toString();
-
-      if (url == null || url.isEmpty) return null;
-      if (url.startsWith("http")) return url;
-
-      return "$publicBase$url";
-    } catch (e) {
+    } catch (_) {
       return null;
     }
   }
@@ -586,9 +627,51 @@ class _CreateAdPageState extends State<CreateAdPage> {
 
     return urls;
   }
+
+  bool get isPropertyForRent {
+    return subCategory == "خانه کرایی" ||
+        subCategory == "آپارتمان" ||
+        subCategory == "دکان و مغازه" ||
+        subCategory == "دفتر کار" ||
+        subCategory == "گدام";
+  }
+
+  bool get isHouseLikeProperty {
+    return subCategory == "خانه فروشی" ||
+        subCategory == "خانه کرایی" ||
+        subCategory == "آپارتمان";
+  }
+
+  bool get isLandProperty {
+    return subCategory == "زمین";
+  }
+
+  bool get isShopProperty {
+    return subCategory == "دکان و مغازه";
+  }
+
+  bool get isOfficeProperty {
+    return subCategory == "دفتر کار";
+  }
+
+  bool get isWarehouseProperty {
+    return subCategory == "گدام";
+  }
+
+  void writeIfNotEmpty(
+    StringBuffer buffer,
+    String label,
+    TextEditingController controller,
+  ) {
+    final value = controller.text.trim();
+
+    if (value.isNotEmpty) {
+      buffer.writeln("$label: $value");
+    }
+  }
+
   String buildFullDescription() {
     final normal = descriptionController.text.trim();
-
     final buffer = StringBuffer();
 
     if (normal.isNotEmpty) {
@@ -604,36 +687,97 @@ class _CreateAdPageState extends State<CreateAdPage> {
     if (mainCategory == "وسایل نقلیه") {
       buffer.writeln();
       buffer.writeln("مشخصات وسایط:");
-      buffer.writeln("برند/نوع: ${brandController.text.trim()}");
-      buffer.writeln("مدل: ${modelController.text.trim()}");
-      buffer.writeln("سال ساخت: ${yearController.text.trim()}");
-      buffer.writeln("رنگ: ${colorController.text.trim()}");
-      buffer.writeln("کیلومتر: ${kmController.text.trim()}");
-      buffer.writeln("تیل: ${fuelController.text.trim()}");
-      buffer.writeln("گیربکس: ${gearController.text.trim()}");
-      buffer.writeln("اسناد/پلاک: ${documentController.text.trim()}");
+
+      writeIfNotEmpty(buffer, "برند/نوع", brandController);
+      writeIfNotEmpty(buffer, "مدل", modelController);
+      writeIfNotEmpty(buffer, "سال ساخت", yearController);
+      writeIfNotEmpty(buffer, "رنگ", colorController);
+
+      if (subCategory == "موتر" || subCategory == "موترسایکل") {
+        writeIfNotEmpty(buffer, "کیلومتر", kmController);
+        writeIfNotEmpty(buffer, "تیل", fuelController);
+        writeIfNotEmpty(buffer, "گیربکس", gearController);
+        writeIfNotEmpty(buffer, "اسناد/پلاک", documentController);
+      }
+
+      if (subCategory == "بایسکل") {
+        writeIfNotEmpty(buffer, "مدل/اندازه", modelController);
+        writeIfNotEmpty(buffer, "وضعیت", conditionController);
+      }
+
+      if (subCategory == "پرزه موتر" || subCategory == "تایر و پرزه") {
+        writeIfNotEmpty(buffer, "مدل/اندازه", modelController);
+        writeIfNotEmpty(buffer, "وضعیت", conditionController);
+      }
     }
 
     if (mainCategory == "املاک") {
       buffer.writeln();
       buffer.writeln("مشخصات ملک:");
-      buffer.writeln("متراژ: ${meterController.text.trim()}");
-      buffer.writeln("تعداد اتاق: ${roomsController.text.trim()}");
-      buffer.writeln("طبقه/منزل: ${floorController.text.trim()}");
-      buffer.writeln("کرایه: ${rentController.text.trim()}");
-      buffer.writeln("گروی: ${depositController.text.trim()}");
-      buffer.writeln("آدرس دقیق: ${addressController.text.trim()}");
-    }
 
+      writeIfNotEmpty(buffer, "نوع ملک", propertyTypeController);
+      writeIfNotEmpty(buffer, "متراژ", meterController);
+
+      if (isHouseLikeProperty) {
+        writeIfNotEmpty(buffer, "تعداد اتاق", roomsController);
+        writeIfNotEmpty(buffer, "تعداد تشناب", bathroomController);
+        writeIfNotEmpty(buffer, "آشپزخانه", kitchenController);
+        writeIfNotEmpty(buffer, "طبقه/منزل", floorController);
+        writeIfNotEmpty(buffer, "پارکینگ", parkingController);
+        writeIfNotEmpty(buffer, "نوع سند", documentController);
+        writeIfNotEmpty(buffer, "امکانات", facilityController);
+      }
+
+      if (isLandProperty) {
+        writeIfNotEmpty(buffer, "نوع استفاده زمین", landUseController);
+        writeIfNotEmpty(buffer, "نوع سند", documentController);
+        writeIfNotEmpty(buffer, "جهت زمین", directionController);
+        writeIfNotEmpty(buffer, "بر جاده", frontageController);
+        writeIfNotEmpty(buffer, "آب و برق", waterPowerController);
+      }
+
+      if (isShopProperty) {
+        writeIfNotEmpty(buffer, "طبقه/منزل", floorController);
+        writeIfNotEmpty(buffer, "بر جاده", frontageController);
+        writeIfNotEmpty(buffer, "آب و برق", waterPowerController);
+        writeIfNotEmpty(buffer, "نوع سند", documentController);
+        writeIfNotEmpty(buffer, "امکانات", facilityController);
+      }
+
+      if (isOfficeProperty) {
+        writeIfNotEmpty(buffer, "تعداد اتاق", roomsController);
+        writeIfNotEmpty(buffer, "تعداد تشناب", bathroomController);
+        writeIfNotEmpty(buffer, "طبقه/منزل", floorController);
+        writeIfNotEmpty(buffer, "پارکینگ", parkingController);
+        writeIfNotEmpty(buffer, "آب و برق", waterPowerController);
+        writeIfNotEmpty(buffer, "امکانات", facilityController);
+      }
+
+      if (isWarehouseProperty) {
+        writeIfNotEmpty(buffer, "ارتفاع", heightController);
+        writeIfNotEmpty(buffer, "آب و برق", waterPowerController);
+        writeIfNotEmpty(buffer, "بر جاده", frontageController);
+        writeIfNotEmpty(buffer, "نوع سند", documentController);
+        writeIfNotEmpty(buffer, "امکانات", facilityController);
+      }
+
+      if (isPropertyForRent) {
+        writeIfNotEmpty(buffer, "کرایه", rentController);
+        writeIfNotEmpty(buffer, "گروی", depositController);
+      }
+
+      writeIfNotEmpty(buffer, "آدرس دقیق", addressController);
+    }
     if (mainCategory == "لوازم الکترونیکی") {
       buffer.writeln();
       buffer.writeln("مشخصات وسیله:");
-      buffer.writeln("برند: ${brandController.text.trim()}");
-      buffer.writeln("مدل: ${modelController.text.trim()}");
-      buffer.writeln("سال/نسخه: ${yearController.text.trim()}");
-      buffer.writeln("رنگ: ${colorController.text.trim()}");
-      buffer.writeln("اندازه/حافظه/ظرفیت: ${sizeController.text.trim()}");
-      buffer.writeln("وضعیت: ${conditionController.text.trim()}");
+
+      writeIfNotEmpty(buffer, "برند", brandController);
+      writeIfNotEmpty(buffer, "مدل", modelController);
+      writeIfNotEmpty(buffer, "سال/نسخه", yearController);
+      writeIfNotEmpty(buffer, "رنگ", colorController);
+      writeIfNotEmpty(buffer, "اندازه/حافظه/ظرفیت", sizeController);
+      writeIfNotEmpty(buffer, "وضعیت", conditionController);
     }
 
     if (mainCategory == "مربوط به خانه" ||
@@ -643,40 +787,32 @@ class _CreateAdPageState extends State<CreateAdPage> {
         mainCategory == "برای کسب و کار") {
       buffer.writeln();
       buffer.writeln("مشخصات کالا:");
-      buffer.writeln("برند/نوع: ${brandController.text.trim()}");
-      buffer.writeln("مدل/اندازه: ${modelController.text.trim()}");
-      buffer.writeln("رنگ: ${colorController.text.trim()}");
-      buffer.writeln("وضعیت: ${conditionController.text.trim()}");
+
+      writeIfNotEmpty(buffer, "برند/نوع", brandController);
+      writeIfNotEmpty(buffer, "مدل/اندازه", modelController);
+      writeIfNotEmpty(buffer, "رنگ", colorController);
+      writeIfNotEmpty(buffer, "وضعیت", conditionController);
     }
 
     if (mainCategory == "خدمات" || mainCategory == "استخدام و کاریابی") {
       buffer.writeln();
       buffer.writeln("مشخصات کار/خدمات:");
-      buffer.writeln("عنوان: ${brandController.text.trim()}");
-      buffer.writeln("معاش/قیمت: ${salaryController.text.trim()}");
-      buffer.writeln("وقت کاری: ${workTimeController.text.trim()}");
-      buffer.writeln("تجربه لازم: ${experienceController.text.trim()}");
-      buffer.writeln("آدرس: ${addressController.text.trim()}");
+
+      writeIfNotEmpty(buffer, "عنوان", brandController);
+      writeIfNotEmpty(buffer, "معاش/قیمت", salaryController);
+      writeIfNotEmpty(buffer, "وقت کاری", workTimeController);
+      writeIfNotEmpty(buffer, "تجربه لازم", experienceController);
+      writeIfNotEmpty(buffer, "آدرس", addressController);
     }
 
     return buffer.toString();
   }
 
-  int? currentUserId() {
-    final user = AuthService.currentUser;
-
-    if (user == null) return null;
-
-    return int.tryParse(user["id"].toString());
-  }
-
   Future<void> submitAd() async {
     if (loading) return;
 
-    if (!isEditMode) {
-      final logged = await ensureLoggedIn();
-      if (!logged) return;
-    }
+    final logged = await ensureLoggedIn();
+    if (!logged) return;
 
     if (titleController.text.trim().isEmpty) {
       showMessage("عنوان آگهی را وارد کنید");
@@ -693,14 +829,11 @@ class _CreateAdPageState extends State<CreateAdPage> {
       return;
     }
 
-    setState(() {
-      loading = true;
-    });
+    setState(() => loading = true);
 
     try {
-      final ownerToken = await AdOwnerService.getOwnerToken();
+      final ownerToken = await Session.getOwnerToken();
       final imageUrls = await uploadAllImages();
-      final userId = currentUserId();
 
       final body = {
         "title": titleController.text.trim(),
@@ -714,52 +847,37 @@ class _CreateAdPageState extends State<CreateAdPage> {
         "image_url": imageUrls.isEmpty ? null : imageUrls.first,
         "images": imageUrls,
         "owner_token": ownerToken,
-        "user_id": userId,
+        "user_id": Session.userId,
       };
 
-      final response = isEditMode
-          ? await http.put(
-              Uri.parse("$apiBase/ads/${widget.ad!['id']}"),
-              headers: {"Content-Type": "application/json"},
-              body: jsonEncode(body),
-            )
-          : await http.post(
-              Uri.parse("$apiBase/ads"),
-              headers: {"Content-Type": "application/json"},
-              body: jsonEncode(body),
-            );
+      await Api.saveAd(
+        isEdit: isEditMode,
+        adId: isEditMode ? int.tryParse(widget.ad!["id"].toString()) : null,
+        body: body,
+      );
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        if (mounted) {
-          showMessage(
-            isEditMode
-                ? "آگهی با موفقیت ویرایش شد"
-                : "آگهی با موفقیت ثبت شد",
-          );
+      if (!mounted) return;
 
-          Navigator.pop(context, true);
-        }
-      } else if (response.statusCode == 403) {
-        showMessage("شما اجازه ویرایش این آگهی را ندارید");
-      } else {
-        showMessage(isEditMode ? "ویرایش انجام نشد" : "ثبت آگهی انجام نشد");
-      }
+      showMessage(
+        isEditMode ? "آگهی با موفقیت ویرایش شد" : "آگهی با موفقیت ثبت شد",
+      );
+
+      Navigator.pop(context, true);
     } catch (e) {
-      showMessage(isEditMode ? "خطا در ویرایش آگهی" : "خطا در ثبت آگهی");
+      showMessage(e.toString().replaceAll("Exception:", "").trim());
     }
 
-    if (mounted) {
-      setState(() {
-        loading = false;
-      });
-    }
+    if (mounted) setState(() => loading = false);
   }
 
   void showMessage(String text) {
     if (!mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(text)),
+      SnackBar(
+        content: Text(text),
+        behavior: SnackBarBehavior.floating,
+      ),
     );
   }
 
@@ -768,6 +886,7 @@ class _CreateAdPageState extends State<CreateAdPage> {
     String label, {
     TextInputType type = TextInputType.text,
     int maxLines = 1,
+    String? hint,
   }) {
     final isNumber = type == TextInputType.number;
 
@@ -781,7 +900,16 @@ class _CreateAdPageState extends State<CreateAdPage> {
         maxLines: maxLines,
         decoration: InputDecoration(
           labelText: label,
-          border: const OutlineInputBorder(),
+          hintText: hint,
+          filled: true,
+          fillColor: Colors.white,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide(color: Colors.grey.shade300),
+          ),
         ),
       ),
     );
@@ -815,7 +943,15 @@ class _CreateAdPageState extends State<CreateAdPage> {
         value: value,
         decoration: InputDecoration(
           labelText: label,
-          border: const OutlineInputBorder(),
+          filled: true,
+          fillColor: Colors.white,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide(color: Colors.grey.shade300),
+          ),
         ),
         items: items.map((item) {
           return DropdownMenuItem<T>(
@@ -827,36 +963,56 @@ class _CreateAdPageState extends State<CreateAdPage> {
       ),
     );
   }
+
   Widget buildCategoryList() {
     return Scaffold(
+      backgroundColor: const Color(0xFFF7F8FA),
       appBar: AppBar(
         title: Text(isEditMode ? "تغییر دسته‌بندی" : "دسته‌بندی آگهی‌ها"),
         centerTitle: true,
       ),
       body: ListView.separated(
+        padding: const EdgeInsets.symmetric(vertical: 8),
         itemCount: mainCategories.length,
-        separatorBuilder: (_, __) => const Divider(height: 1),
+        separatorBuilder: (_, __) => const SizedBox(height: 6),
         itemBuilder: (context, index) {
           final item = mainCategories[index];
           final color = item["color"] as Color;
 
-          return ListTile(
-            leading: CircleAvatar(
-              backgroundColor: color.withOpacity(0.14),
-              child: Icon(item["icon"] as IconData, color: color),
+          return Container(
+            margin: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.04),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
-            title: Text(
-              item["name"].toString(),
-              textAlign: TextAlign.right,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-            ),
-            trailing: const Icon(Icons.chevron_left),
-            onTap: () {
-              showSubCategories(
+            child: ListTile(
+              leading: CircleAvatar(
+                backgroundColor: color.withOpacity(0.14),
+                child: Icon(item["icon"] as IconData, color: color),
+              ),
+              title: Text(
                 item["name"].toString(),
-                List<String>.from(item["subs"] as List),
-              );
-            },
+                textAlign: TextAlign.right,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              trailing: const Icon(Icons.chevron_left),
+              onTap: () {
+                showSubCategories(
+                  item["name"].toString(),
+                  List<String>.from(item["subs"] as List),
+                );
+              },
+            ),
           );
         },
       ),
@@ -867,6 +1023,10 @@ class _CreateAdPageState extends State<CreateAdPage> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      backgroundColor: const Color(0xFFF7F8FA),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       builder: (_) {
         return Directionality(
           textDirection: TextDirection.rtl,
@@ -906,25 +1066,31 @@ class _CreateAdPageState extends State<CreateAdPage> {
                       ],
                     ),
                   ),
-                  const Divider(height: 1),
                   Expanded(
                     child: ListView.separated(
+                      padding: const EdgeInsets.all(12),
                       itemCount: subs.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
                       itemBuilder: (context, index) {
                         final sub = subs[index];
 
-                        return ListTile(
-                          title: Text(
-                            sub,
-                            textAlign: TextAlign.right,
-                            style: const TextStyle(fontSize: 17),
+                        return Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(14),
                           ),
-                          trailing: const Icon(Icons.chevron_left),
-                          onTap: () {
-                            Navigator.pop(context);
-                            selectCategory(main, sub);
-                          },
+                          child: ListTile(
+                            title: Text(
+                              sub,
+                              textAlign: TextAlign.right,
+                              style: const TextStyle(fontSize: 17),
+                            ),
+                            trailing: const Icon(Icons.chevron_left),
+                            onTap: () {
+                              Navigator.pop(context);
+                              selectCategory(main, sub);
+                            },
+                          ),
                         );
                       },
                     ),
@@ -937,10 +1103,20 @@ class _CreateAdPageState extends State<CreateAdPage> {
       },
     );
   }
-
   Widget categoryHeader() {
-    return Card(
+    return Container(
       margin: const EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
       child: ListTile(
         leading: const Icon(Icons.category),
         title: Text(
@@ -953,44 +1129,269 @@ class _CreateAdPageState extends State<CreateAdPage> {
           textAlign: TextAlign.right,
         ),
         trailing: const Icon(Icons.edit),
-        onTap: backToCategories,
+        onTap: loading ? null : backToCategories,
       ),
     );
   }
 
-  Widget categorySpecificFields() {
-    if (mainCategory == "وسایل نقلیه") {
+  Widget accountCard() {
+    final isLogged = Session.isLoggedIn;
+    final userName =
+        Session.userFullName.isEmpty ? "کاربر عزیز" : Session.userFullName;
+    final phone = Session.userPhone;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: isLogged
+              ? [
+                  const Color(0xFFE8F5E9),
+                  const Color(0xFFF1F8E9),
+                ]
+              : [
+                  const Color(0xFFFFF3E0),
+                  const Color(0xFFFFF8E1),
+                ],
+        ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: isLogged ? Colors.green.shade200 : Colors.orange.shade200,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: isLogged ? Colors.green.shade600 : Colors.orange.shade600,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(
+              isLogged ? Icons.verified_user : Icons.person_outline,
+              color: Colors.white,
+              size: 26,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  isLogged ? userName : "ورود به حساب",
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                if (isLogged && phone.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    phone,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          TextButton(
+            onPressed: loading
+                ? null
+                : () async {
+                    if (Session.isLoggedIn) {
+                      await openAuthForChangeAccount();
+                    } else {
+                      await ensureLoggedIn();
+                      setState(() {});
+                    }
+                  },
+            child: Text(isLogged ? "تغییر" : "ورود"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget propertyFields() {
+    if (isLandProperty) {
       return Column(
         children: [
-          sectionTitle("مشخصات وسایل نقلیه"),
-          textField(brandController, "برند یا نوع وسیله"),
-          textField(modelController, "مدل"),
-          textField(yearController, "سال ساخت", type: TextInputType.number),
-          textField(kmController, "کیلومتر کارکرد", type: TextInputType.number),
-          textField(colorController, "رنگ"),
-          textField(fuelController, "نوع تیل مثل پترول، دیزل، گاز"),
-          textField(gearController, "گیربکس مثل اتومات یا دنده‌ای"),
-          textField(documentController, "اسناد، نمبر پلیت، محصول"),
+          sectionTitle("مشخصات زمین"),
+          textField(meterController, "متراژ زمین", type: TextInputType.number),
+          textField(
+            landUseController,
+            "نوع استفاده زمین",
+            hint: "مثلاً رهایشی، تجارتی، زراعتی",
+          ),
+          textField(
+            documentController,
+            "نوع سند",
+            hint: "مثلاً قباله، عرفی، رسمی",
+          ),
+          textField(directionController, "جهت زمین"),
+          textField(frontageController, "بر جاده / سرک"),
+          textField(waterPowerController, "آب و برق"),
+          textField(addressController, "آدرس دقیق زمین", maxLines: 2),
         ],
       );
     }
 
-    if (mainCategory == "املاک") {
+    if (isShopProperty) {
       return Column(
         children: [
-          sectionTitle("مشخصات املاک"),
-          textField(meterController, "متراژ", type: TextInputType.number),
-          textField(roomsController, "تعداد اتاق", type: TextInputType.number),
-          textField(floorController, "طبقه / منزل / همکف"),
+          sectionTitle("مشخصات دکان و مغازه"),
+          textField(meterController, "متراژ دکان", type: TextInputType.number),
+          textField(floorController, "طبقه / موقعیت"),
+          textField(frontageController, "بر جاده / بازار"),
+          textField(waterPowerController, "برق، آب یا امکانات"),
+          textField(documentController, "نوع سند"),
+          textField(facilityController, "امکانات دیگر", maxLines: 2),
           textField(rentController, "کرایه ماهانه", type: TextInputType.number),
           textField(
             depositController,
             "گروی / پیش‌پرداخت",
             type: TextInputType.number,
           ),
-          textField(addressController, "آدرس دقیق", maxLines: 2),
+          textField(addressController, "آدرس دقیق دکان", maxLines: 2),
         ],
       );
+    }
+
+    if (isOfficeProperty) {
+      return Column(
+        children: [
+          sectionTitle("مشخصات دفتر کار"),
+          textField(meterController, "متراژ دفتر", type: TextInputType.number),
+          textField(roomsController, "تعداد اتاق", type: TextInputType.number),
+          textField(
+            bathroomController,
+            "تعداد تشناب",
+            type: TextInputType.number,
+          ),
+          textField(floorController, "طبقه / منزل"),
+          textField(parkingController, "پارکینگ"),
+          textField(waterPowerController, "آب، برق، انترنت"),
+          textField(facilityController, "امکانات دفتر", maxLines: 2),
+          textField(rentController, "کرایه ماهانه", type: TextInputType.number),
+          textField(
+            depositController,
+            "گروی / پیش‌پرداخت",
+            type: TextInputType.number,
+          ),
+          textField(addressController, "آدرس دقیق دفتر", maxLines: 2),
+        ],
+      );
+    }
+
+    if (isWarehouseProperty) {
+      return Column(
+        children: [
+          sectionTitle("مشخصات گدام"),
+          textField(meterController, "متراژ گدام", type: TextInputType.number),
+          textField(heightController, "ارتفاع گدام"),
+          textField(frontageController, "دسترسی موتر / سرک"),
+          textField(waterPowerController, "برق، آب یا برق سه‌فاز"),
+          textField(documentController, "نوع سند"),
+          textField(facilityController, "امکانات گدام", maxLines: 2),
+          textField(rentController, "کرایه ماهانه", type: TextInputType.number),
+          textField(
+            depositController,
+            "گروی / پیش‌پرداخت",
+            type: TextInputType.number,
+          ),
+          textField(addressController, "آدرس دقیق گدام", maxLines: 2),
+        ],
+      );
+    }
+
+    return Column(
+      children: [
+        sectionTitle("مشخصات خانه یا آپارتمان"),
+        textField(meterController, "متراژ", type: TextInputType.number),
+        textField(roomsController, "تعداد اتاق", type: TextInputType.number),
+        textField(
+          bathroomController,
+          "تعداد تشناب",
+          type: TextInputType.number,
+        ),
+        textField(kitchenController, "آشپزخانه"),
+        textField(floorController, "طبقه / منزل / همکف"),
+        textField(parkingController, "پارکینگ"),
+        textField(documentController, "نوع سند"),
+        textField(facilityController, "امکانات", maxLines: 2),
+        if (subCategory == "خانه کرایی" || subCategory == "آپارتمان") ...[
+          textField(rentController, "کرایه ماهانه", type: TextInputType.number),
+          textField(
+            depositController,
+            "گروی / پیش‌پرداخت",
+            type: TextInputType.number,
+          ),
+        ],
+        textField(addressController, "آدرس دقیق", maxLines: 2),
+      ],
+    );
+  }
+
+  Widget vehicleFields() {
+    if (subCategory == "بایسکل") {
+      return Column(
+        children: [
+          sectionTitle("مشخصات بایسکل"),
+          textField(brandController, "برند / نوع بایسکل"),
+          textField(modelController, "مدل / سایز"),
+          textField(colorController, "رنگ"),
+          textField(conditionController, "وضعیت"),
+        ],
+      );
+    }
+
+    if (subCategory == "پرزه موتر" || subCategory == "تایر و پرزه") {
+      return Column(
+        children: [
+          sectionTitle("مشخصات پرزه"),
+          textField(brandController, "نام پرزه / برند"),
+          textField(modelController, "مدل / اندازه"),
+          textField(conditionController, "وضعیت"),
+          textField(colorController, "رنگ"),
+        ],
+      );
+    }
+
+    return Column(
+      children: [
+        sectionTitle("مشخصات وسیله نقلیه"),
+        textField(brandController, "برند یا نوع وسیله"),
+        textField(modelController, "مدل"),
+        textField(yearController, "سال ساخت", type: TextInputType.number),
+        textField(kmController, "کیلومتر کارکرد", type: TextInputType.number),
+        textField(colorController, "رنگ"),
+        textField(fuelController, "نوع تیل مثل پترول، دیزل، گاز"),
+        textField(gearController, "گیربکس مثل اتومات یا دنده‌ای"),
+        textField(documentController, "اسناد، نمبر پلیت، محصول"),
+      ],
+    );
+  }
+
+  Widget categorySpecificFields() {
+    if (mainCategory == "املاک") {
+      return propertyFields();
+    }
+
+    if (mainCategory == "وسایل نقلیه") {
+      return vehicleFields();
     }
 
     if (mainCategory == "لوازم الکترونیکی") {
@@ -1066,6 +1467,8 @@ class _CreateAdPageState extends State<CreateAdPage> {
   }
 
   Widget imagePickerSection() {
+    final totalImages = existingImageUrls.length + selectedImages.length;
+
     return Column(
       children: [
         sectionTitle("عکس‌های آگهی"),
@@ -1075,9 +1478,7 @@ class _CreateAdPageState extends State<CreateAdPage> {
             onPressed: loading ? null : pickImages,
             icon: const Icon(Icons.image),
             label: Text(
-              existingImageUrls.isEmpty && selectedImages.isEmpty
-                  ? "انتخاب عکس"
-                  : "عکس‌ها (${existingImageUrls.length + selectedImages.length}/20)",
+              totalImages == 0 ? "انتخاب عکس" : "عکس‌ها ($totalImages/20)",
             ),
           ),
         ),
@@ -1162,6 +1563,8 @@ class _CreateAdPageState extends State<CreateAdPage> {
                 scrollDirection: Axis.horizontal,
                 itemCount: selectedImageBytes.length,
                 itemBuilder: (context, index) {
+                  final mainIndex = existingImageUrls.length + index;
+
                   return Stack(
                     children: [
                       Container(
@@ -1195,6 +1598,28 @@ class _CreateAdPageState extends State<CreateAdPage> {
                           ),
                         ),
                       ),
+                      if (mainIndex == 0)
+                        Positioned(
+                          left: 8,
+                          bottom: 8,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.green,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Text(
+                              "عکس اصلی",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ),
                     ],
                   );
                 },
@@ -1206,15 +1631,12 @@ class _CreateAdPageState extends State<CreateAdPage> {
   }
 
   Widget buildFormPage() {
-    final user = AuthService.currentUser;
-    final userName = user == null
-        ? "وارد نشده"
-        : "${user["first_name"] ?? ""} ${user["last_name"] ?? ""}".trim();
-
     return Scaffold(
+      backgroundColor: const Color(0xFFF7F8FA),
       appBar: AppBar(
         title: Text(isEditMode ? "ویرایش آگهی" : "ثبت آگهی"),
         centerTitle: true,
+        elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: loading ? null : backToCategories,
@@ -1226,41 +1648,36 @@ class _CreateAdPageState extends State<CreateAdPage> {
           padding: const EdgeInsets.all(16),
           child: Column(
             children: [
-              if (!isEditMode)
-                Card(
-                  margin: const EdgeInsets.only(bottom: 14),
-                  child: ListTile(
-                    leading: const Icon(Icons.account_circle),
-                    title: Text("حساب: $userName"),
-                    subtitle: const Text(
-                      "برای ثبت آگهی باید وارد حساب باشید",
-                    ),
-                    trailing: TextButton(
-                      onPressed: loading
-                          ? null
-                          : () async {
-                              await ensureLoggedIn();
-                              setState(() {});
-                            },
-                      child: Text(
-                        AuthService.isLoggedIn ? "تغییر حساب" : "ورود",
-                      ),
-                    ),
-                  ),
-                ),
+              if (!isEditMode) accountCard(),
+
               categoryHeader(),
+
+              sectionTitle("اطلاعات اصلی"),
               textField(titleController, "عنوان آگهی"),
-              textField(descriptionController, "توضیحات عمومی", maxLines: 4),
-              textField(priceController, "قیمت", type: TextInputType.number),
+              textField(
+                descriptionController,
+                "توضیحات عمومی",
+                maxLines: 4,
+              ),
+              textField(
+                priceController,
+                mainCategory == "املاک" && isPropertyForRent
+                    ? "قیمت / کرایه"
+                    : "قیمت",
+                type: TextInputType.number,
+              ),
               textField(
                 phoneController,
                 "شماره تماس",
                 type: TextInputType.phone,
               ),
+
               categorySpecificFields(),
               locationFields(),
               imagePickerSection(),
+
               const SizedBox(height: 30),
+
               SizedBox(
                 width: double.infinity,
                 height: 55,
@@ -1275,12 +1692,57 @@ class _CreateAdPageState extends State<CreateAdPage> {
                   ),
                 ),
               ),
+
               const SizedBox(height: 20),
             ],
           ),
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    titleController.dispose();
+    descriptionController.dispose();
+    priceController.dispose();
+    phoneController.dispose();
+
+    brandController.dispose();
+    modelController.dispose();
+    yearController.dispose();
+    colorController.dispose();
+    sizeController.dispose();
+    conditionController.dispose();
+
+    meterController.dispose();
+    roomsController.dispose();
+    floorController.dispose();
+    addressController.dispose();
+    rentController.dispose();
+    depositController.dispose();
+
+    propertyTypeController.dispose();
+    documentController.dispose();
+    facilityController.dispose();
+    directionController.dispose();
+    bathroomController.dispose();
+    kitchenController.dispose();
+    parkingController.dispose();
+    waterPowerController.dispose();
+    landUseController.dispose();
+    frontageController.dispose();
+    heightController.dispose();
+
+    kmController.dispose();
+    fuelController.dispose();
+    gearController.dispose();
+
+    salaryController.dispose();
+    workTimeController.dispose();
+    experienceController.dispose();
+
+    super.dispose();
   }
 
   @override

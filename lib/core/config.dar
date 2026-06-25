@@ -1,0 +1,7 @@
+const String appName = "HeratBazar";
+
+const String apiBase =
+    "https://api.kooktalayi.com/heratbazar-api/api";
+
+const String publicBase =
+    "https://api.kooktalayi.com/heratbazar-api";

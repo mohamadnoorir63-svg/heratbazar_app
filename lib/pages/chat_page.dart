@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
-import '../services/chat_service.dart';
+
+import '../core/api.dart';
+import '../core/session.dart';
 
 class ChatPage extends StatefulWidget {
   final Map ad;
+  final String? myPhone;
 
   const ChatPage({
     super.key,
     required this.ad,
+    this.myPhone,
   });
 
   @override
@@ -15,12 +19,42 @@ class ChatPage extends StatefulWidget {
 
 class _ChatPageState extends State<ChatPage> {
   final TextEditingController messageController = TextEditingController();
+  final ScrollController scrollController = ScrollController();
 
-  List messages = [];
+  List<dynamic> messages = [];
+
   bool loading = true;
   bool sending = false;
 
-  final String myPhone = '0700000000';
+  int get adId =>
+      int.tryParse(widget.ad['id']?.toString() ?? '0') ?? 0;
+
+  String get sellerPhone =>
+      widget.ad['phone']?.toString().trim() ??
+      widget.ad['contact_phone']?.toString().trim() ??
+      widget.ad['seller_phone']?.toString().trim() ??
+      widget.ad['owner_phone']?.toString().trim() ??
+      '';
+
+  String get myPhone {
+    final phone = widget.myPhone?.trim() ?? '';
+    if (phone.isNotEmpty) return phone;
+    return Session.userPhone.trim();
+  }
+
+  String get otherPhone => sellerPhone.trim();
+
+  bool get isOwnAd =>
+      myPhone.isNotEmpty &&
+      otherPhone.isNotEmpty &&
+      myPhone == otherPhone;
+
+  bool get canChat =>
+      Session.isLoggedIn &&
+      adId > 0 &&
+      myPhone.isNotEmpty &&
+      otherPhone.isNotEmpty &&
+      !isOwnAd;
 
   @override
   void initState() {
@@ -28,11 +62,29 @@ class _ChatPageState extends State<ChatPage> {
     loadMessages();
   }
 
-  int get adId => int.tryParse(widget.ad['id'].toString()) ?? 0;
+  @override
+  void dispose() {
+    messageController.dispose();
+    scrollController.dispose();
+    super.dispose();
+  }
 
   Future<void> loadMessages() async {
+    if (!canChat) {
+      if (mounted) {
+        setState(() {
+          loading = false;
+        });
+      }
+      return;
+    }
+
     try {
-      final result = await ChatService.getMessages(adId);
+      final result = await Api.getMessages(
+        adId: adId,
+        myPhone: myPhone,
+        otherPhone: otherPhone,
+      );
 
       if (!mounted) return;
 
@@ -40,6 +92,8 @@ class _ChatPageState extends State<ChatPage> {
         messages = result;
         loading = false;
       });
+
+      scrollToBottom();
     } catch (e) {
       if (!mounted) return;
 
@@ -48,33 +102,46 @@ class _ChatPageState extends State<ChatPage> {
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('خطا در دریافت پیام‌ها: $e')),
+        SnackBar(
+          content: Text(
+            e.toString().replaceAll('Exception: ', ''),
+          ),
+        ),
       );
     }
   }
 
   Future<void> sendMessage() async {
     final text = messageController.text.trim();
-    if (text.isEmpty || sending) return;
+
+    if (text.isEmpty || sending || !canChat) return;
 
     setState(() {
       sending = true;
     });
 
     try {
-      await ChatService.sendMessage(
+      await Api.sendMessage(
         adId: adId,
         senderPhone: myPhone,
+        receiverPhone: otherPhone,
         message: text,
       );
 
       messageController.clear();
+
       await loadMessages();
+
+      scrollToBottom();
     } catch (e) {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('خطا در ارسال پیام: $e')),
+        SnackBar(
+          content: Text(
+            e.toString().replaceAll('Exception: ', ''),
+          ),
+        ),
       );
     } finally {
       if (mounted) {
@@ -85,80 +152,188 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final ad = widget.ad;
+  void scrollToBottom() {
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (!mounted) return;
+      if (!scrollController.hasClients) return;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(ad['title']?.toString() ?? 'چت'),
+      scrollController.animateTo(
+        scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
+  String messageText(dynamic msg) {
+    if (msg is! Map) return '';
+    return msg['message']?.toString() ?? '';
+  }
+
+  String sender(dynamic msg) {
+    if (msg is! Map) return '';
+    return msg['sender_phone']?.toString() ?? '';
+  }
+
+  Widget buildMessage(dynamic msg) {
+    final isMe = sender(msg).trim() == myPhone;
+    final text = messageText(msg);
+
+    return Align(
+      alignment:
+          isMe ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        padding: const EdgeInsets.all(12),
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * .75,
+        ),
+        decoration: BoxDecoration(
+          color:
+              isMe ? Colors.blue.shade100 : Colors.grey.shade300,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Text(
+          text,
+          textDirection: TextDirection.rtl,
+        ),
       ),
-      body: Column(
-        children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            color: Colors.grey.shade200,
-            child: Text(
-              ad['title']?.toString() ?? '',
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
+    );
+  }
+
+  Widget buildEmptyState() {
+    String text = 'اطلاعات چت کامل نیست';
+
+    if (!Session.isLoggedIn) {
+      text = 'ابتدا وارد حساب خود شوید';
+    } else if (isOwnAd) {
+      text = 'این آگهی متعلق به شماست';
+    } else if (otherPhone.isEmpty) {
+      text = 'شماره فروشنده موجود نیست';
+    }
+
+    return Expanded(
+      child: Center(
+        child: Text(
+          text,
+          textDirection: TextDirection.rtl,
+          textAlign: TextAlign.center,
+        ),
+      ),
+    );
+  }
+
+  Widget buildMessages() {
+    if (loading) {
+      return const Expanded(
+        child: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    if (messages.isEmpty) {
+      return const Expanded(
+        child: Center(
+          child: Text(
+            'هنوز پیامی وجود ندارد',
+            textDirection: TextDirection.rtl,
+          ),
+        ),
+      );
+    }
+
+    return Expanded(
+      child: RefreshIndicator(
+        onRefresh: loadMessages,
+        child: ListView.builder(
+          controller: scrollController,
+          padding: const EdgeInsets.all(12),
+          itemCount: messages.length,
+          itemBuilder: (context, index) {
+            return buildMessage(messages[index]);
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget buildInputBar() {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(8),
+        child: Row(
+          children: [
+            IconButton(
+              onPressed:
+                  sending || !canChat ? null : sendMessage,
+              icon: sending
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : const Icon(Icons.send),
+            ),
+            Expanded(
+              child: TextField(
+                controller: messageController,
+                enabled: canChat && !sending,
+                textDirection: TextDirection.rtl,
+                decoration: const InputDecoration(
+                  hintText: 'پیام بنویس...',
+                  border: OutlineInputBorder(),
+                ),
+                onSubmitted: (_) => sendMessage(),
               ),
             ),
-          ),
-          Expanded(
-            child: loading
-                ? const Center(child: CircularProgressIndicator())
-                : ListView.builder(
-                    padding: const EdgeInsets.all(12),
-                    itemCount: messages.length,
-                    itemBuilder: (context, index) {
-                      final msg = messages[index];
-                      final isMe = msg['sender_phone'] == myPhone;
+          ],
+        ),
+      ),
+    );
+  }
 
-                      return Align(
-                        alignment:
-                            isMe ? Alignment.centerRight : Alignment.centerLeft,
-                        child: Container(
-                          margin: const EdgeInsets.only(bottom: 10),
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: isMe
-                                ? Colors.blue.shade100
-                                : Colors.grey.shade300,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(msg['message']?.toString() ?? ''),
-                        ),
-                      );
-                    },
-                  ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: messageController,
-                    decoration: const InputDecoration(
-                      hintText: 'پیام بنویس...',
-                      border: OutlineInputBorder(),
-                    ),
-                    onSubmitted: (_) => sendMessage(),
-                  ),
-                ),
-                IconButton(
-                  onPressed: sending ? null : sendMessage,
-                  icon: sending
-                      ? const CircularProgressIndicator()
-                      : const Icon(Icons.send),
-                ),
-              ],
+  @override
+  Widget build(BuildContext context) {
+    final title =
+        widget.ad['title']?.toString() ?? 'چت';
+
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(title),
+          actions: [
+            IconButton(
+              onPressed: loadMessages,
+              icon: const Icon(Icons.refresh),
             ),
-          ),
-        ],
+          ],
+        ),
+        body: Column(
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              color: Colors.grey.shade200,
+              child: Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+                textDirection: TextDirection.rtl,
+              ),
+            ),
+            if (!canChat)
+              buildEmptyState()
+            else
+              buildMessages(),
+            buildInputBar(),
+          ],
+        ),
       ),
     );
   }

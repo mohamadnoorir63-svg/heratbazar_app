@@ -3,8 +3,10 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
-import '../services/ad_owner_service.dart';
+import '../core/session.dart';
+
 import 'chat_page.dart';
+import 'chat_list_page.dart';
 import 'create_ad_page.dart';
 
 const apiBase = "https://api.kooktalayi.com/heratbazar-api/api";
@@ -26,6 +28,51 @@ class _AdDetailPageState extends State<AdDetailPage> {
 
   int currentImage = 0;
   bool actionLoading = false;
+  bool favoriteLoading = false;
+  bool isFavorite = false;
+
+  @override
+  void initState() {
+    super.initState();
+    loadFavoriteState();
+  }
+
+  Future<void> loadFavoriteState() async {
+    final result = await Session.isFavoriteMap(widget.ad);
+    if (!mounted) return;
+
+    setState(() {
+      isFavorite = result;
+    });
+  }
+
+  Future<void> toggleFavorite() async {
+    if (favoriteLoading) return;
+
+    setState(() {
+      favoriteLoading = true;
+    });
+
+    try {
+      final result = await Session.toggleFavoriteMap(widget.ad);
+
+      if (!mounted) return;
+
+      setState(() {
+        isFavorite = result;
+      });
+
+      showMessage(result ? "به علاقه‌مندی‌ها اضافه شد" : "از علاقه‌مندی‌ها حذف شد");
+    } catch (e) {
+      showMessage("خطا در ذخیره علاقه‌مندی");
+    }
+
+    if (mounted) {
+      setState(() {
+        favoriteLoading = false;
+      });
+    }
+  }
 
   String getText(String key) {
     final value = widget.ad[key];
@@ -35,6 +82,13 @@ class _AdDetailPageState extends State<AdDetailPage> {
 
   int getAdId() {
     return int.tryParse(getText('id')) ?? 0;
+  }
+
+  bool get isOwner {
+    final adUserId = int.tryParse(getText('user_id'));
+    final myUserId = Session.userId;
+
+    return adUserId != null && myUserId != null && adUserId == myUserId;
   }
 
   List<String> getImages() {
@@ -88,7 +142,6 @@ class _AdDetailPageState extends State<AdDetailPage> {
       if (text.startsWith('ولایت:')) return false;
       if (text.startsWith('ولسوالی:')) return false;
       if (text.startsWith('مشخصات')) return false;
-
       if (text.contains(':')) return false;
 
       return true;
@@ -161,7 +214,6 @@ class _AdDetailPageState extends State<AdDetailPage> {
 
     return specs;
   }
-
   Color categoryColor(String category) {
     switch (category) {
       case 'املاک':
@@ -224,20 +276,8 @@ class _AdDetailPageState extends State<AdDetailPage> {
     );
   }
 
-  Future<bool> isOwner() async {
-    final token = getText('owner_token');
-
-    if (token.isEmpty) {
-      return false;
-    }
-
-    return await AdOwnerService.isMyAd(token);
-  }
-
   Future<void> openEditPage() async {
-    final canEdit = await isOwner();
-
-    if (!canEdit) {
+    if (!isOwner) {
       showMessage("شما اجازه ویرایش این آگهی را ندارید");
       return;
     }
@@ -253,10 +293,9 @@ class _AdDetailPageState extends State<AdDetailPage> {
       Navigator.pop(context, true);
     }
   }
-  Future<void> deleteAd() async {
-    final canDelete = await isOwner();
 
-    if (!canDelete) {
+  Future<void> deleteAd() async {
+    if (!isOwner) {
       showMessage("شما اجازه حذف این آگهی را ندارید");
       return;
     }
@@ -294,13 +333,11 @@ class _AdDetailPageState extends State<AdDetailPage> {
     });
 
     try {
-      final ownerToken = await AdOwnerService.getOwnerToken();
-
       final response = await http.delete(
         Uri.parse("$apiBase/ads/${getAdId()}"),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({
-          "owner_token": ownerToken,
+          "user_id": Session.userId,
         }),
       );
 
@@ -326,11 +363,9 @@ class _AdDetailPageState extends State<AdDetailPage> {
   }
 
   Future<void> showOwnerMenu() async {
-    final canManage = await isOwner();
-
     if (!mounted) return;
 
-    if (!canManage) {
+    if (!isOwner) {
       showMessage("این آگهی مربوط به شما نیست");
       return;
     }
@@ -385,7 +420,24 @@ class _AdDetailPageState extends State<AdDetailPage> {
     );
   }
 
+  Widget topCircleButton({
+    required IconData icon,
+    required VoidCallback onPressed,
+    Color iconColor = Colors.white,
+  }) {
+    return CircleAvatar(
+      backgroundColor: Colors.black54,
+      child: IconButton(
+        icon: Icon(icon, color: iconColor),
+        onPressed: onPressed,
+      ),
+    );
+  }
+
   Widget imageGallery(List<String> images, String title) {
+    final favoriteIcon = isFavorite ? Icons.favorite : Icons.favorite_border;
+    final favoriteColor = isFavorite ? Colors.redAccent : Colors.white;
+
     if (images.isEmpty) {
       return Stack(
         children: [
@@ -404,32 +456,38 @@ class _AdDetailPageState extends State<AdDetailPage> {
           Positioned(
             top: 34,
             right: 14,
-            child: CircleAvatar(
-              backgroundColor: Colors.black54,
-              child: IconButton(
-                icon: const Icon(Icons.arrow_back, color: Colors.white),
-                onPressed: () => Navigator.pop(context),
-              ),
+            child: topCircleButton(
+              icon: Icons.arrow_back,
+              onPressed: () => Navigator.pop(context),
+            ),
+          ),
+          Positioned(
+            top: 34,
+            left: 70,
+            child: topCircleButton(
+              icon: favoriteIcon,
+              iconColor: favoriteColor,
+              onPressed: toggleFavorite,
             ),
           ),
           Positioned(
             top: 34,
             left: 14,
-            child: CircleAvatar(
-              backgroundColor: Colors.black54,
-              child: actionLoading
-                  ? const Padding(
+            child: actionLoading
+                ? const CircleAvatar(
+                    backgroundColor: Colors.black54,
+                    child: Padding(
                       padding: EdgeInsets.all(10),
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
                         color: Colors.white,
                       ),
-                    )
-                  : IconButton(
-                      icon: const Icon(Icons.more_vert, color: Colors.white),
-                      onPressed: showOwnerMenu,
                     ),
-            ),
+                  )
+                : topCircleButton(
+                    icon: Icons.more_vert,
+                    onPressed: showOwnerMenu,
+                  ),
           ),
         ],
       );
@@ -473,55 +531,51 @@ class _AdDetailPageState extends State<AdDetailPage> {
             },
           ),
         ),
-
         Positioned(
           top: 34,
           right: 14,
-          child: CircleAvatar(
-            backgroundColor: Colors.black54,
-            child: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
-              onPressed: () => Navigator.pop(context),
-            ),
+          child: topCircleButton(
+            icon: Icons.arrow_back,
+            onPressed: () => Navigator.pop(context),
           ),
         ),
-
+        Positioned(
+          top: 34,
+          left: 70,
+          child: topCircleButton(
+            icon: favoriteIcon,
+            iconColor: favoriteColor,
+            onPressed: toggleFavorite,
+          ),
+        ),
         Positioned(
           top: 34,
           left: 14,
-          child: CircleAvatar(
-            backgroundColor: Colors.black54,
-            child: actionLoading
-                ? const Padding(
+          child: actionLoading
+              ? const CircleAvatar(
+                  backgroundColor: Colors.black54,
+                  child: Padding(
                     padding: EdgeInsets.all(10),
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
                       color: Colors.white,
                     ),
-                  )
-                : IconButton(
-                    icon: const Icon(Icons.more_vert, color: Colors.white),
-                    onPressed: showOwnerMenu,
                   ),
-          ),
+                )
+              : topCircleButton(
+                  icon: Icons.more_vert,
+                  onPressed: showOwnerMenu,
+                ),
         ),
-
         if (images.length > 1)
           Positioned(
             left: 14,
             top: 0,
             bottom: 0,
             child: Center(
-              child: CircleAvatar(
-                backgroundColor: Colors.black54,
-                child: IconButton(
-                  icon: const Icon(
-                    Icons.arrow_back_ios_new,
-                    color: Colors.white,
-                    size: 18,
-                  ),
-                  onPressed: previousImage,
-                ),
+              child: topCircleButton(
+                icon: Icons.arrow_back_ios_new,
+                onPressed: previousImage,
               ),
             ),
           ),
@@ -532,16 +586,9 @@ class _AdDetailPageState extends State<AdDetailPage> {
             top: 0,
             bottom: 0,
             child: Center(
-              child: CircleAvatar(
-                backgroundColor: Colors.black54,
-                child: IconButton(
-                  icon: const Icon(
-                    Icons.arrow_forward_ios,
-                    color: Colors.white,
-                    size: 18,
-                  ),
-                  onPressed: () => nextImage(images),
-                ),
+              child: topCircleButton(
+                icon: Icons.arrow_forward_ios,
+                onPressed: () => nextImage(images),
               ),
             ),
           ),
@@ -595,6 +642,7 @@ class _AdDetailPageState extends State<AdDetailPage> {
       ],
     );
   }
+
   Widget priceAndTitleCard({
     required String title,
     required String price,
@@ -635,7 +683,9 @@ class _AdDetailPageState extends State<AdDetailPage> {
           ),
           const SizedBox(height: 12),
           Text(
-            price.isEmpty ? 'قیمت: نامشخص' : 'قیمت: $price AFN',
+            price.isEmpty || price == '0'
+                ? 'قیمت توافقی'
+                : 'قیمت: $price AFN',
             textAlign: TextAlign.right,
             style: const TextStyle(
               fontSize: 26,
@@ -889,8 +939,8 @@ class _AdDetailPageState extends State<AdDetailPage> {
           const SizedBox(width: 12),
           Expanded(
             child: FilledButton.icon(
-              icon: const Icon(Icons.chat),
-              label: const Text('چت'),
+              icon: Icon(isOwner ? Icons.message : Icons.chat),
+              label: Text(isOwner ? 'پیام‌ها' : 'چت'),
               style: FilledButton.styleFrom(
                 minimumSize: const Size.fromHeight(54),
                 shape: RoundedRectangleBorder(
@@ -898,10 +948,28 @@ class _AdDetailPageState extends State<AdDetailPage> {
                 ),
               ),
               onPressed: () {
+                if (!Session.isLoggedIn) {
+                  showMessage("برای چت باید وارد حساب شوید");
+                  return;
+                }
+
+                if (isOwner) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const ChatListPage(),
+                    ),
+                  );
+                  return;
+                }
+
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => ChatPage(ad: widget.ad),
+                    builder: (_) => ChatPage(
+                      ad: widget.ad,
+                      myPhone: Session.userPhone,
+                    ),
                   ),
                 );
               },

@@ -394,4 +394,102 @@ router.post('/:id/report', async (req, res) => {
   }
 });
 
+
+
+router.post('/:id/view', async (req, res) => {
+  try {
+    const adId = req.params.id;
+
+    const result = await db.query(
+      `
+      UPDATE ads
+      SET view_count = COALESCE(view_count, 0) + 1,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+      RETURNING id, view_count
+      `,
+      [adId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'ad not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      ad_id: result.rows[0].id,
+      view_count: result.rows[0].view_count
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.post('/:id/favorite/increment', async (req, res) => {
+  try {
+    const adId = req.params.id;
+
+    const result = await db.query(
+      `
+      UPDATE ads
+      SET favorite_count = COALESCE(favorite_count, 0) + 1,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+      RETURNING id, favorite_count
+      `,
+      [adId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'ad not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      ad_id: result.rows[0].id,
+      favorite_count: result.rows[0].favorite_count
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.post('/:id/favorite/decrement', async (req, res) => {
+  try {
+    const adId = req.params.id;
+
+    const result = await db.query(
+      `
+      UPDATE ads
+      SET favorite_count = GREATEST(COALESCE(favorite_count, 0) - 1, 0),
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+      RETURNING id, favorite_count
+      `,
+      [adId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'ad not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      ad_id: result.rows[0].id,
+      favorite_count: result.rows[0].favorite_count
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 module.exports = router;

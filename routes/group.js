@@ -23,6 +23,22 @@ function getAdmin(req) {
   }
 }
 
+async function touchMember(userId, phone) {
+  if (!userId) return;
+
+  await db.query(
+    `
+    INSERT INTO official_group_members(user_id, phone)
+    VALUES($1, $2)
+    ON CONFLICT(user_id)
+    DO UPDATE SET
+      phone = EXCLUDED.phone,
+      last_seen = CURRENT_TIMESTAMP
+    `,
+    [userId, phone || null]
+  );
+}
+
 async function isBanned(userId, phone) {
   const result = await db.query(
     `
@@ -36,8 +52,38 @@ async function isBanned(userId, phone) {
   return result.rows.length > 0;
 }
 
+router.get('/stats', async (req, res) => {
+  try {
+    const members = await db.query(
+      'SELECT COUNT(*)::int AS count FROM official_group_members'
+    );
+
+    const messages = await db.query(
+      'SELECT COUNT(*)::int AS count FROM official_group_messages'
+    );
+
+    const pinned = await db.query(
+      'SELECT COUNT(*)::int AS count FROM official_group_messages WHERE is_pinned = true'
+    );
+
+    res.json({
+      success: true,
+      stats: {
+        members: members.rows[0].count,
+        messages: messages.rows[0].count,
+        pinned_messages: pinned.rows[0].count
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 router.get('/messages', async (req, res) => {
   try {
+    const q = String(req.query.q || '').trim();
+    const limit = Math.min(parseInt(req.query.limit || '300', 10), 500);
+
     const result = await db.query(
       `
       SELECT
@@ -46,12 +92,19 @@ router.get('/messages', async (req, res) => {
         u.last_name,
         u.role,
         u.is_verified,
-        u.avatar_url
+        u.avatar_url,
+        r.message AS reply_message,
+        ru.first_name AS reply_first_name,
+        ru.last_name AS reply_last_name
       FROM official_group_messages m
       LEFT JOIN users u ON u.id = m.sender_user_id
+      LEFT JOIN official_group_messages r ON r.id = m.reply_to_message_id
+      LEFT JOIN users ru ON ru.id = r.sender_user_id
+      WHERE ($1 = '' OR m.message ILIKE '%' || $1 || '%')
       ORDER BY m.is_pinned DESC, m.created_at DESC
-      LIMIT 300
-      `
+      LIMIT $2
+      `,
+      [q, limit]
     );
 
     res.json({
@@ -69,10 +122,23 @@ router.post('/messages', async (req, res) => {
     const phone = req.body.phone;
     const message = String(req.body.message || '').trim();
 
-    if (!userId || !phone || !message) {
+    const messageType = req.body.message_type || 'text';
+    const mediaUrl = req.body.media_url || null;
+    const mediaName = req.body.media_name || null;
+    const mediaMime = req.body.media_mime || null;
+    const replyToMessageId = req.body.reply_to_message_id || null;
+
+    if (!userId || !phone) {
       return res.status(400).json({
         success: false,
-        error: 'user_id, phone and message required'
+        error: 'user_id and phone required'
+      });
+    }
+
+    if (!message && !mediaUrl) {
+      return res.status(400).json({
+        success: false,
+        error: 'message or media_url required'
       });
     }
 
@@ -85,18 +151,104 @@ router.post('/messages', async (req, res) => {
       });
     }
 
+    await touchMember(userId, phone);
+
     const result = await db.query(
       `
-      INSERT INTO official_group_messages(sender_user_id, sender_phone, message)
-      VALUES($1, $2, $3)
+      INSERT INTO official_group_messages(
+        sender_user_id,
+        sender_phone,
+        message,
+        message_type,
+        media_url,
+        media_name,
+        media_mime,
+        reply_to_message_id
+      )
+      VALUES($1,$2,$3,$4,$5,$6,$7,$8)
       RETURNING *
       `,
-      [userId, phone, message]
+      [
+        userId,
+        phone,
+        message,
+        messageType,
+        mediaUrl,
+        mediaName,
+        mediaMime,
+        replyToMessageId
+      ]
     );
 
     res.json({
       success: true,
       message: result.rows[0]
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.post('/messages/:id/react', async (req, res) => {
+  try {
+    const messageId = req.params.id;
+    const userId = req.body.user_id;
+    const reaction = req.body.reaction || 'like';
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        error: 'user_id required'
+      });
+    }
+
+    const exists = await db.query(
+      `
+      SELECT id FROM official_group_reactions
+      WHERE message_id = $1 AND user_id = $2 AND reaction = $3
+      `,
+      [messageId, userId, reaction]
+    );
+
+    if (exists.rows.length > 0) {
+      await db.query(
+        'DELETE FROM official_group_reactions WHERE id = $1',
+        [exists.rows[0].id]
+      );
+    } else {
+      await db.query(
+        `
+        INSERT INTO official_group_reactions(message_id, user_id, reaction)
+        VALUES($1,$2,$3)
+        `,
+        [messageId, userId, reaction]
+      );
+    }
+
+    const count = await db.query(
+      `
+      SELECT COUNT(*)::int AS count
+      FROM official_group_reactions
+      WHERE message_id = $1 AND reaction = 'like'
+      `,
+      [messageId]
+    );
+
+    const updated = await db.query(
+      `
+      UPDATE official_group_messages
+      SET like_count = $1,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $2
+      RETURNING id, like_count
+      `,
+      [count.rows[0].count, messageId]
+    );
+
+    res.json({
+      success: true,
+      message: updated.rows[0],
+      reacted: exists.rows.length === 0
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -114,11 +266,9 @@ router.delete('/messages/:id', async (req, res) => {
       });
     }
 
-    const messageId = req.params.id;
-
     const result = await db.query(
       'DELETE FROM official_group_messages WHERE id = $1 RETURNING id',
-      [messageId]
+      [req.params.id]
     );
 
     if (result.rows.length === 0) {
@@ -148,8 +298,6 @@ router.patch('/messages/:id/pin', async (req, res) => {
       });
     }
 
-    const messageId = req.params.id;
-
     await db.query(
       'UPDATE official_group_messages SET is_pinned = false WHERE is_pinned = true'
     );
@@ -162,7 +310,7 @@ router.patch('/messages/:id/pin', async (req, res) => {
       WHERE id = $1
       RETURNING *
       `,
-      [messageId]
+      [req.params.id]
     );
 
     if (result.rows.length === 0) {
@@ -192,8 +340,6 @@ router.patch('/messages/:id/unpin', async (req, res) => {
       });
     }
 
-    const messageId = req.params.id;
-
     const result = await db.query(
       `
       UPDATE official_group_messages
@@ -202,7 +348,7 @@ router.patch('/messages/:id/unpin', async (req, res) => {
       WHERE id = $1
       RETURNING *
       `,
-      [messageId]
+      [req.params.id]
     );
 
     if (result.rows.length === 0) {
@@ -243,15 +389,18 @@ router.post('/ban', async (req, res) => {
       });
     }
 
+    await db.query(
+      `
+      DELETE FROM official_group_bans
+      WHERE user_id = $1 OR phone = $2
+      `,
+      [userId, phone]
+    );
+
     const result = await db.query(
       `
       INSERT INTO official_group_bans(user_id, phone, reason)
-      VALUES($1, $2, $3)
-      ON CONFLICT (user_id)
-      DO UPDATE SET
-        phone = EXCLUDED.phone,
-        reason = EXCLUDED.reason,
-        banned_at = CURRENT_TIMESTAMP
+      VALUES($1,$2,$3)
       RETURNING *
       `,
       [userId, phone, reason]
@@ -279,13 +428,6 @@ router.post('/unban', async (req, res) => {
 
     const userId = req.body.user_id || null;
     const phone = req.body.phone || null;
-
-    if (!userId && !phone) {
-      return res.status(400).json({
-        success: false,
-        error: 'user_id or phone required'
-      });
-    }
 
     const result = await db.query(
       `

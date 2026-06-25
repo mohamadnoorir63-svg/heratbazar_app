@@ -9,6 +9,7 @@ const uploadsRoutes = require('./routes/uploads');
 const authRoutes = require('./routes/auth');
 const chatRoutes = require('./routes/chat');
 const adminRoutes = require('./routes/admin');
+const usersRoutes = require('./routes/users');
 
 const app = express();
 
@@ -23,6 +24,7 @@ app.use('/api/uploads', uploadsRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/users', usersRoutes);
 
 const PORT = process.env.PORT || 4001;
 app.listen(PORT, () => {

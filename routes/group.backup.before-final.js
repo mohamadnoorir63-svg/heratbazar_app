@@ -23,34 +23,6 @@ function getAdmin(req) {
   }
 }
 
-async function logAdmin(admin, action, data = {}) {
-  try {
-    await db.query(
-      `
-      INSERT INTO official_group_admin_logs(
-        admin_user_id,
-        admin_phone,
-        action,
-        target_user_id,
-        target_phone,
-        message_id,
-        details
-      )
-      VALUES($1,$2,$3,$4,$5,$6,$7)
-      `,
-      [
-        admin.user_id || null,
-        admin.phone || null,
-        action,
-        data.target_user_id || null,
-        data.target_phone || null,
-        data.message_id || null,
-        data.details || null
-      ]
-    );
-  } catch (_) {}
-}
-
 async function touchMember(userId, phone) {
   if (!userId) return;
 
@@ -80,26 +52,6 @@ async function isBanned(userId, phone) {
   return result.rows.length > 0;
 }
 
-async function isMuted(userId) {
-  if (!userId) return false;
-
-  const result = await db.query(
-    `
-    SELECT muted_until
-    FROM official_group_members
-    WHERE user_id = $1
-    LIMIT 1
-    `,
-    [userId]
-  );
-
-  if (result.rows.length === 0) return false;
-  const mutedUntil = result.rows[0].muted_until;
-  if (!mutedUntil) return false;
-
-  return new Date(mutedUntil).getTime() > Date.now();
-}
-
 router.get('/stats', async (req, res) => {
   try {
     const members = await db.query(
@@ -107,11 +59,11 @@ router.get('/stats', async (req, res) => {
     );
 
     const messages = await db.query(
-      'SELECT COUNT(*)::int AS count FROM official_group_messages WHERE is_deleted = false'
+      'SELECT COUNT(*)::int AS count FROM official_group_messages'
     );
 
     const pinned = await db.query(
-      'SELECT COUNT(*)::int AS count FROM official_group_messages WHERE is_pinned = true AND is_deleted = false'
+      'SELECT COUNT(*)::int AS count FROM official_group_messages WHERE is_pinned = true'
     );
 
     res.json({
@@ -121,48 +73,6 @@ router.get('/stats', async (req, res) => {
         messages: messages.rows[0].count,
         pinned_messages: pinned.rows[0].count
       }
-    });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-router.get('/members', async (req, res) => {
-  try {
-    const q = String(req.query.q || '').trim();
-
-    const result = await db.query(
-      `
-      SELECT
-        gm.user_id,
-        gm.phone,
-        gm.joined_at,
-        gm.last_seen,
-        gm.is_typing,
-        gm.unread_count,
-        gm.muted_until,
-        u.first_name,
-        u.last_name,
-        u.role,
-        u.is_verified,
-        u.avatar_url
-      FROM official_group_members gm
-      LEFT JOIN users u ON u.id = gm.user_id
-      WHERE (
-        $1 = ''
-        OR u.first_name ILIKE '%' || $1 || '%'
-        OR u.last_name ILIKE '%' || $1 || '%'
-        OR gm.phone ILIKE '%' || $1 || '%'
-      )
-      ORDER BY gm.last_seen DESC
-      LIMIT 300
-      `,
-      [q]
-    );
-
-    res.json({
-      success: true,
-      members: result.rows
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -190,9 +100,7 @@ router.get('/messages', async (req, res) => {
       LEFT JOIN users u ON u.id = m.sender_user_id
       LEFT JOIN official_group_messages r ON r.id = m.reply_to_message_id
       LEFT JOIN users ru ON ru.id = r.sender_user_id
-      WHERE
-        m.is_deleted = false
-        AND ($1 = '' OR m.message ILIKE '%' || $1 || '%')
+      WHERE ($1 = '' OR m.message ILIKE '%' || $1 || '%')
       ORDER BY m.is_pinned DESC, m.created_at DESC
       LIMIT $2
       `,
@@ -234,7 +142,9 @@ router.post('/messages', async (req, res) => {
       });
     }
 
-    if (await isBanned(userId, phone)) {
+    const banned = await isBanned(userId, phone);
+
+    if (banned) {
       return res.status(403).json({
         success: false,
         error: 'شما از گروه رسمی مسدود شده‌اید'
@@ -242,13 +152,6 @@ router.post('/messages', async (req, res) => {
     }
 
     await touchMember(userId, phone);
-
-    if (await isMuted(userId)) {
-      return res.status(403).json({
-        success: false,
-        error: 'شما فعلاً در گروه بی‌صدا شده‌اید'
-      });
-    }
 
     const result = await db.query(
       `
@@ -277,102 +180,9 @@ router.post('/messages', async (req, res) => {
       ]
     );
 
-    await db.query(
-      `
-      UPDATE official_group_members
-      SET unread_count = unread_count + 1
-      WHERE user_id <> $1
-      `,
-      [userId]
-    );
-
     res.json({
       success: true,
       message: result.rows[0]
-    });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-router.patch('/messages/:id/edit', async (req, res) => {
-  try {
-    const messageId = req.params.id;
-    const userId = req.body.user_id;
-    const newMessage = String(req.body.message || '').trim();
-
-    if (!userId || !newMessage) {
-      return res.status(400).json({
-        success: false,
-        error: 'user_id and message required'
-      });
-    }
-
-    const result = await db.query(
-      `
-      UPDATE official_group_messages
-      SET message = $1,
-          edited_at = CURRENT_TIMESTAMP,
-          updated_at = CURRENT_TIMESTAMP
-      WHERE id = $2
-        AND sender_user_id = $3
-        AND is_deleted = false
-      RETURNING *
-      `,
-      [newMessage, messageId, userId]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(403).json({
-        success: false,
-        error: 'not allowed or message not found'
-      });
-    }
-
-    res.json({
-      success: true,
-      message: result.rows[0]
-    });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-router.delete('/messages/:id/own', async (req, res) => {
-  try {
-    const messageId = req.params.id;
-    const userId = req.body.user_id || req.query.user_id;
-
-    if (!userId) {
-      return res.status(400).json({
-        success: false,
-        error: 'user_id required'
-      });
-    }
-
-    const result = await db.query(
-      `
-      UPDATE official_group_messages
-      SET is_deleted = true,
-          message = '',
-          updated_at = CURRENT_TIMESTAMP
-      WHERE id = $1
-        AND sender_user_id = $2
-      RETURNING id
-      `,
-      [messageId, userId]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(403).json({
-        success: false,
-        error: 'not allowed or message not found'
-      });
-    }
-
-    res.json({
-      success: true,
-      deleted_id: result.rows[0].id
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -445,72 +255,6 @@ router.post('/messages/:id/react', async (req, res) => {
   }
 });
 
-router.post('/typing', async (req, res) => {
-  try {
-    const userId = req.body.user_id;
-    const phone = req.body.phone || null;
-    const isTyping = req.body.is_typing === true;
-
-    if (!userId) {
-      return res.status(400).json({
-        success: false,
-        error: 'user_id required'
-      });
-    }
-
-    await touchMember(userId, phone);
-
-    const result = await db.query(
-      `
-      UPDATE official_group_members
-      SET is_typing = $1,
-          last_seen = CURRENT_TIMESTAMP
-      WHERE user_id = $2
-      RETURNING user_id, is_typing, last_seen
-      `,
-      [isTyping, userId]
-    );
-
-    res.json({
-      success: true,
-      member: result.rows[0]
-    });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-router.post('/read', async (req, res) => {
-  try {
-    const userId = req.body.user_id;
-
-    if (!userId) {
-      return res.status(400).json({
-        success: false,
-        error: 'user_id required'
-      });
-    }
-
-    const result = await db.query(
-      `
-      UPDATE official_group_members
-      SET unread_count = 0,
-          last_seen = CURRENT_TIMESTAMP
-      WHERE user_id = $1
-      RETURNING user_id, unread_count, last_seen
-      `,
-      [userId]
-    );
-
-    res.json({
-      success: true,
-      member: result.rows[0] || null
-    });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
 router.delete('/messages/:id', async (req, res) => {
   try {
     const admin = getAdmin(req);
@@ -523,14 +267,7 @@ router.delete('/messages/:id', async (req, res) => {
     }
 
     const result = await db.query(
-      `
-      UPDATE official_group_messages
-      SET is_deleted = true,
-          message = '',
-          updated_at = CURRENT_TIMESTAMP
-      WHERE id = $1
-      RETURNING id
-      `,
+      'DELETE FROM official_group_messages WHERE id = $1 RETURNING id',
       [req.params.id]
     );
 
@@ -540,10 +277,6 @@ router.delete('/messages/:id', async (req, res) => {
         error: 'message not found'
       });
     }
-
-    await logAdmin(admin, 'delete_message', {
-      message_id: result.rows[0].id
-    });
 
     res.json({
       success: true,
@@ -574,7 +307,7 @@ router.patch('/messages/:id/pin', async (req, res) => {
       UPDATE official_group_messages
       SET is_pinned = true,
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $1 AND is_deleted = false
+      WHERE id = $1
       RETURNING *
       `,
       [req.params.id]
@@ -586,10 +319,6 @@ router.patch('/messages/:id/pin', async (req, res) => {
         error: 'message not found'
       });
     }
-
-    await logAdmin(admin, 'pin_message', {
-      message_id: result.rows[0].id
-    });
 
     res.json({
       success: true,
@@ -629,94 +358,9 @@ router.patch('/messages/:id/unpin', async (req, res) => {
       });
     }
 
-    await logAdmin(admin, 'unpin_message', {
-      message_id: result.rows[0].id
-    });
-
     res.json({
       success: true,
       message: result.rows[0]
-    });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-router.post('/mute', async (req, res) => {
-  try {
-    const admin = getAdmin(req);
-
-    if (!admin) {
-      return res.status(403).json({
-        success: false,
-        error: 'admin token required'
-      });
-    }
-
-    const userId = req.body.user_id;
-    const minutes = Number(req.body.minutes || 60);
-
-    if (!userId) {
-      return res.status(400).json({
-        success: false,
-        error: 'user_id required'
-      });
-    }
-
-    const result = await db.query(
-      `
-      UPDATE official_group_members
-      SET muted_until = CURRENT_TIMESTAMP + ($1 || ' minutes')::interval
-      WHERE user_id = $2
-      RETURNING user_id, muted_until
-      `,
-      [minutes, userId]
-    );
-
-    await logAdmin(admin, 'mute_user', {
-      target_user_id: userId,
-      details: `${minutes} minutes`
-    });
-
-    res.json({
-      success: true,
-      member: result.rows[0] || null
-    });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-router.post('/unmute', async (req, res) => {
-  try {
-    const admin = getAdmin(req);
-
-    if (!admin) {
-      return res.status(403).json({
-        success: false,
-        error: 'admin token required'
-      });
-    }
-
-    const userId = req.body.user_id;
-
-    const result = await db.query(
-      `
-      UPDATE official_group_members
-      SET muted_until = NULL
-      WHERE user_id = $1
-      RETURNING user_id, muted_until
-      `,
-      [userId]
-    );
-
-    await logAdmin(admin, 'unmute_user', {
-      target_user_id: userId
-    });
-
-    res.json({
-      success: true,
-      member: result.rows[0] || null
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -762,12 +406,6 @@ router.post('/ban', async (req, res) => {
       [userId, phone, reason]
     );
 
-    await logAdmin(admin, 'ban_user', {
-      target_user_id: userId,
-      target_phone: phone,
-      details: reason
-    });
-
     res.json({
       success: true,
       ban: result.rows[0]
@@ -800,78 +438,9 @@ router.post('/unban', async (req, res) => {
       [userId, phone]
     );
 
-    await logAdmin(admin, 'unban_user', {
-      target_user_id: userId,
-      target_phone: phone
-    });
-
     res.json({
       success: true,
       removed: result.rows
-    });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-router.get('/announcements', async (req, res) => {
-  try {
-    const result = await db.query(
-      `
-      SELECT *
-      FROM official_group_announcements
-      WHERE is_active = true
-      ORDER BY created_at DESC
-      LIMIT 20
-      `
-    );
-
-    res.json({
-      success: true,
-      announcements: result.rows
-    });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-router.post('/announcements', async (req, res) => {
-  try {
-    const admin = getAdmin(req);
-
-    if (!admin) {
-      return res.status(403).json({
-        success: false,
-        error: 'admin token required'
-      });
-    }
-
-    const title = String(req.body.title || '').trim();
-    const body = String(req.body.body || '').trim();
-
-    if (!title || !body) {
-      return res.status(400).json({
-        success: false,
-        error: 'title and body required'
-      });
-    }
-
-    const result = await db.query(
-      `
-      INSERT INTO official_group_announcements(title, body, created_by)
-      VALUES($1,$2,$3)
-      RETURNING *
-      `,
-      [title, body, admin.phone || 'owner']
-    );
-
-    await logAdmin(admin, 'create_announcement', {
-      details: title
-    });
-
-    res.json({
-      success: true,
-      announcement: result.rows[0]
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });

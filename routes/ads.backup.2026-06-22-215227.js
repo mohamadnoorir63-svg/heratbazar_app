@@ -38,12 +38,11 @@ router.post('/', async (req, res) => {
       category_id,
       image_url,
       images,
-      owner_token,
-      user_id
+      owner_token
     } = req.body;
 
-    if (!user_id) {
-      return res.status(400).json({ error: 'user_id required' });
+    if (!owner_token) {
+      return res.status(400).json({ error: 'owner_token required' });
     }
 
     const result = await db.query(`
@@ -57,10 +56,9 @@ router.post('/', async (req, res) => {
         district,
         category_id,
         image_url,
-        owner_token,
-        user_id
+        owner_token
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
       RETURNING *
     `, [
       title || '',
@@ -72,8 +70,7 @@ router.post('/', async (req, res) => {
       district || null,
       category_id || null,
       image_url || null,
-      owner_token || null,
-      user_id || null
+      owner_token
     ]);
 
     const ad = result.rows[0];
@@ -116,12 +113,11 @@ router.put('/:id', async (req, res) => {
       category_id,
       image_url,
       images,
-      owner_token,
-      user_id
+      owner_token
     } = req.body;
 
-    if (!user_id) {
-      return res.status(400).json({ error: 'user_id required' });
+    if (!owner_token) {
+      return res.status(400).json({ error: 'owner_token required' });
     }
 
     const check = await db.query(
@@ -135,12 +131,7 @@ router.put('/:id', async (req, res) => {
 
     const oldAd = check.rows[0];
 
-    const userOk =
-      user_id &&
-      oldAd.user_id &&
-      Number(oldAd.user_id) === Number(user_id);
-
-    if (!userOk) {
+    if (oldAd.owner_token !== owner_token) {
       return res.status(403).json({ error: 'not allowed' });
     }
 
@@ -155,9 +146,8 @@ router.put('/:id', async (req, res) => {
         district = $7,
         category_id = $8,
         image_url = $9,
-        user_id = COALESCE($10, user_id),
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $11
+      WHERE id = $10
       RETURNING *
     `, [
       title || '',
@@ -169,7 +159,6 @@ router.put('/:id', async (req, res) => {
       district || null,
       category_id || null,
       image_url || null,
-      user_id || null,
       adId
     ]);
 
@@ -201,12 +190,10 @@ router.put('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     const adId = req.params.id;
-
     const owner_token = req.body.owner_token || req.query.owner_token;
-    const user_id = req.body.user_id || req.query.user_id;
 
-    if (!user_id) {
-      return res.status(400).json({ error: 'user_id required' });
+    if (!owner_token) {
+      return res.status(400).json({ error: 'owner_token required' });
     }
 
     const check = await db.query(
@@ -220,12 +207,7 @@ router.delete('/:id', async (req, res) => {
 
     const ad = check.rows[0];
 
-    const userOk =
-      user_id &&
-      ad.user_id &&
-      Number(ad.user_id) === Number(user_id);
-
-    if (!userOk) {
+    if (ad.owner_token !== owner_token) {
       return res.status(403).json({ error: 'not allowed' });
     }
 

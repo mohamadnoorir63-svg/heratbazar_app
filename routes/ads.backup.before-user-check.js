@@ -42,8 +42,8 @@ router.post('/', async (req, res) => {
       user_id
     } = req.body;
 
-    if (!user_id) {
-      return res.status(400).json({ error: 'user_id required' });
+    if (!owner_token && !user_id) {
+      return res.status(400).json({ error: 'owner_token or user_id required' });
     }
 
     const result = await db.query(`
@@ -120,8 +120,8 @@ router.put('/:id', async (req, res) => {
       user_id
     } = req.body;
 
-    if (!user_id) {
-      return res.status(400).json({ error: 'user_id required' });
+    if (!owner_token && !user_id) {
+      return res.status(400).json({ error: 'owner_token or user_id required' });
     }
 
     const check = await db.query(
@@ -135,12 +135,17 @@ router.put('/:id', async (req, res) => {
 
     const oldAd = check.rows[0];
 
+    const ownerOk =
+      owner_token &&
+      oldAd.owner_token &&
+      oldAd.owner_token === owner_token;
+
     const userOk =
       user_id &&
       oldAd.user_id &&
       Number(oldAd.user_id) === Number(user_id);
 
-    if (!userOk) {
+    if (!ownerOk && !userOk) {
       return res.status(403).json({ error: 'not allowed' });
     }
 
@@ -205,8 +210,8 @@ router.delete('/:id', async (req, res) => {
     const owner_token = req.body.owner_token || req.query.owner_token;
     const user_id = req.body.user_id || req.query.user_id;
 
-    if (!user_id) {
-      return res.status(400).json({ error: 'user_id required' });
+    if (!owner_token && !user_id) {
+      return res.status(400).json({ error: 'owner_token or user_id required' });
     }
 
     const check = await db.query(
@@ -220,12 +225,17 @@ router.delete('/:id', async (req, res) => {
 
     const ad = check.rows[0];
 
+    const ownerOk =
+      owner_token &&
+      ad.owner_token &&
+      ad.owner_token === owner_token;
+
     const userOk =
       user_id &&
       ad.user_id &&
       Number(ad.user_id) === Number(user_id);
 
-    if (!userOk) {
+    if (!ownerOk && !userOk) {
       return res.status(403).json({ error: 'not allowed' });
     }
 

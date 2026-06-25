@@ -7,7 +7,6 @@ const categoriesRoutes = require('./routes/categories');
 const adsRoutes = require('./routes/ads');
 const uploadsRoutes = require('./routes/uploads');
 const authRoutes = require('./routes/auth');
-const chatRoutes = require('./routes/chat');
 
 const app = express();
 
@@ -20,7 +19,6 @@ app.use('/api/categories', categoriesRoutes);
 app.use('/api/ads', adsRoutes);
 app.use('/api/uploads', uploadsRoutes);
 app.use('/api/auth', authRoutes);
-app.use('/api/chat', chatRoutes);
 
 const PORT = process.env.PORT || 4001;
 app.listen(PORT, () => {

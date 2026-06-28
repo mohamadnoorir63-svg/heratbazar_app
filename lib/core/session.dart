@@ -8,32 +8,41 @@ class Session {
   static const String favoritesKey = "hb_favorite_ads";
   static const String adminTokenKey = "hb_admin_token";
 
-  static const String groupNameKey = "hb_group_guest_name";
-  static const String groupAvatarKey = "hb_group_guest_avatar";
-  static const String groupGuestIdKey = "hb_group_guest_id";
-
   static const String ownerPhone = "015906771961";
   static const String ownerPhoneIntl = "+4915906771961";
+  static const String ownerEmail = "mohamadnoorir63@gmail.com";
 
   static Map<String, dynamic>? currentUser;
   static String? _ownerToken;
   static String? _adminToken;
-  static String? _groupGuestId;
 
   static bool get isLoggedIn => currentUser != null;
 
-  static bool get isAdmin {
-    final role = currentUser?["role"]?.toString() ?? "";
-    return role == "admin" || role == "owner" || isOwner;
+  static String _stringValue(String key) {
+    return currentUser?[key]?.toString() ?? "";
+  }
+
+  static bool _boolValue(String key) {
+    final value = currentUser?[key];
+    return value == true ||
+        value.toString() == "true" ||
+        value.toString() == "1";
   }
 
   static bool get isOwner {
-    final role = currentUser?["role"]?.toString() ?? "";
+    final role = _stringValue("role");
     final phone = userPhone.trim();
+    final email = userEmail.trim().toLowerCase();
 
     return role == "owner" ||
         phone == ownerPhone ||
-        phone == ownerPhoneIntl;
+        phone == ownerPhoneIntl ||
+        email == ownerEmail;
+  }
+
+  static bool get isAdmin {
+    final role = _stringValue("role");
+    return role == "admin" || role == "owner" || isOwner;
   }
 
   static int? get userId {
@@ -43,57 +52,57 @@ class Session {
   }
 
   static String get userFullName {
-    final firstName = currentUser?["first_name"]?.toString() ?? "";
-    final lastName = currentUser?["last_name"]?.toString() ?? "";
+    final firstName = _stringValue("first_name");
+    final lastName = _stringValue("last_name");
     return "$firstName $lastName".trim();
   }
 
-  static String get userPhone {
-    return currentUser?["phone"]?.toString() ?? "";
+  static String get userPhone => _stringValue("phone");
+
+  static String get userEmail => _stringValue("email");
+
+  static String get userContact {
+    final email = userEmail.trim();
+    final phone = userPhone.trim();
+
+    if (email.isNotEmpty) return email;
+    return phone;
   }
 
-  static String get userEmail {
-    return currentUser?["email"]?.toString() ?? "";
-  }
+  static String get userAvatar => _stringValue("avatar_url");
 
-  static String get userAvatar {
-    return currentUser?["avatar_url"]?.toString() ?? "";
-  }
+  static bool get isVerified => _boolValue("is_verified") || isOwner;
 
-  static bool get isVerified {
-    final value = currentUser?["is_verified"];
-    return value == true ||
-        value.toString() == "true" ||
-        value.toString() == "1";
-  }
+  static bool get isPremium => _boolValue("is_premium");
 
-  static String get adminToken {
-    return _adminToken ?? "";
-  }
+  static bool get isBlueVerified => _boolValue("is_blue_verified");
 
-  static String get ownerHeaderPhone {
-    return ownerPhone;
+  static String get adminToken => _adminToken ?? "";
+
+  static String get ownerHeaderPhone => ownerPhone;
+
+  static Future<SharedPreferences> get _prefs async {
+    return SharedPreferences.getInstance();
   }
 
   static Future<void> loadUser() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _prefs;
 
-    final text = prefs.getString(userKey);
     _ownerToken = prefs.getString(ownerTokenKey);
     _adminToken = prefs.getString(adminTokenKey);
-    _groupGuestId = prefs.getString(groupGuestIdKey);
 
-    if (text == null || text.isEmpty) {
+    final text = prefs.getString(userKey);
+
+    if (text == null || text.trim().isEmpty) {
       currentUser = null;
-      await getGroupGuestId();
       return;
     }
 
     try {
-      final data = jsonDecode(text);
+      final decoded = jsonDecode(text);
 
-      if (data is Map) {
-        currentUser = Map<String, dynamic>.from(data);
+      if (decoded is Map) {
+        currentUser = Map<String, dynamic>.from(decoded);
       } else {
         currentUser = null;
         await prefs.remove(userKey);
@@ -102,17 +111,34 @@ class Session {
       currentUser = null;
       await prefs.remove(userKey);
     }
-
-    await getGroupGuestId();
   }
 
   static Future<void> saveUser(Map<String, dynamic> user) async {
     currentUser = Map<String, dynamic>.from(user);
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(userKey, jsonEncode(currentUser));
+    final token = currentUser?["admin_token"]?.toString().trim() ?? "";
 
-    await getGroupGuestId();
+    if (token.isNotEmpty) {
+      await saveAdminToken(token);
+      currentUser?.remove("admin_token");
+    }
+
+    final prefs = await _prefs;
+    await prefs.setString(userKey, jsonEncode(currentUser));
+  }
+
+  static Future<void> saveLoginResponse(Map<String, dynamic> data) async {
+    final userData = data["user"];
+
+    if (userData is Map) {
+      await saveUser(Map<String, dynamic>.from(userData));
+    }
+
+    final token = data["admin_token"]?.toString().trim() ?? "";
+
+    if (token.isNotEmpty) {
+      await saveAdminToken(token);
+    }
   }
 
   static Future<void> updateCurrentUserField(String key, dynamic value) async {
@@ -120,15 +146,15 @@ class Session {
 
     currentUser![key] = value;
 
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _prefs;
     await prefs.setString(userKey, jsonEncode(currentUser));
   }
 
   static Future<void> saveAdminToken(String token) async {
     final cleanToken = token.trim();
-    _adminToken = cleanToken;
+    _adminToken = cleanToken.isEmpty ? null : cleanToken;
 
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _prefs;
 
     if (cleanToken.isEmpty) {
       await prefs.remove(adminTokenKey);
@@ -141,34 +167,28 @@ class Session {
   static Future<void> clearAdminToken() async {
     _adminToken = null;
 
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _prefs;
     await prefs.remove(adminTokenKey);
   }
 
-  static Future<void> logout({
-    bool keepGroupProfile = true,
-  }) async {
+  static Future<void> logout() async {
     currentUser = null;
     _adminToken = null;
 
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _prefs;
     await prefs.remove(userKey);
     await prefs.remove(adminTokenKey);
-
-    if (!keepGroupProfile) {
-      await clearGroupProfile(resetGuestId: true);
-    }
   }
 
   static Future<String> getOwnerToken() async {
-    if (_ownerToken != null && _ownerToken!.isNotEmpty) {
+    if (_ownerToken != null && _ownerToken!.trim().isNotEmpty) {
       return _ownerToken!;
     }
 
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _prefs;
     final saved = prefs.getString(ownerTokenKey);
 
-    if (saved != null && saved.isNotEmpty) {
+    if (saved != null && saved.trim().isNotEmpty) {
       _ownerToken = saved;
       return saved;
     }
@@ -179,107 +199,33 @@ class Session {
     await prefs.setString(ownerTokenKey, token);
     return token;
   }
-
-  static Future<String> getGroupGuestId() async {
-    if (_groupGuestId != null && _groupGuestId!.isNotEmpty) {
-      return _groupGuestId!;
-    }
-
-    final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getString(groupGuestIdKey);
-
-    if (saved != null && saved.isNotEmpty) {
-      _groupGuestId = saved;
-      return saved;
-    }
-
-    final now = DateTime.now();
-    final id =
-        "guest_${now.millisecondsSinceEpoch}_${now.microsecondsSinceEpoch}";
-
-    _groupGuestId = id;
-    await prefs.setString(groupGuestIdKey, id);
-
-    return id;
-  }
-
-  static String get cachedGroupGuestId {
-    return _groupGuestId ?? "";
-  }
-
-  static Future<void> resetGroupGuestId() async {
-    _groupGuestId = null;
-
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(groupGuestIdKey);
-
-    await getGroupGuestId();
-  }
-
-  static Future<String> getGroupName() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(groupNameKey) ?? "";
-  }
-
-  static Future<String> getGroupAvatar() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(groupAvatarKey) ?? "";
-  }
-
-  static Future<Map<String, String>> getGroupProfile() async {
-    return {
-      "guest_id": await getGroupGuestId(),
-      "guest_name": await getGroupName(),
-      "guest_avatar_url": await getGroupAvatar(),
-    };
-  }
-
-  static Future<bool> hasGroupProfile() async {
-    final name = await getGroupName();
-    return name.trim().isNotEmpty;
-  }
-
-  static Future<void> saveGroupProfile({
-    required String name,
-    String avatarUrl = "",
-  }) async {
-    final prefs = await SharedPreferences.getInstance();
-
-    await prefs.setString(groupNameKey, name.trim());
-    await prefs.setString(groupAvatarKey, avatarUrl.trim());
-
-    await getGroupGuestId();
-  }
-
-  static Future<void> clearGroupProfile({
-    bool resetGuestId = false,
-  }) async {
-    final prefs = await SharedPreferences.getInstance();
-
-    await prefs.remove(groupNameKey);
-    await prefs.remove(groupAvatarKey);
-
-    if (resetGuestId) {
-      _groupGuestId = null;
-      await prefs.remove(groupGuestIdKey);
-    }
-  }
-
   static Future<bool> isMyAd(String? adToken) async {
-    if (adToken == null || adToken.trim().isEmpty) return false;
+    final cleanToken = adToken?.trim() ?? "";
+
+    if (cleanToken.isEmpty) return false;
 
     final myToken = await getOwnerToken();
-    return myToken == adToken.trim();
+    return myToken == cleanToken;
   }
 
   static String favoriteKeyForUser() {
     final id = userId;
 
-    if (id != null) return "${favoritesKey}_user_$id";
+    if (id != null) {
+      return "${favoritesKey}_user_$id";
+    }
+
+    final email = userEmail.trim().toLowerCase();
+
+    if (email.isNotEmpty) {
+      return "${favoritesKey}_email_$email";
+    }
 
     final phone = userPhone.trim();
 
-    if (phone.isNotEmpty) return "${favoritesKey}_phone_$phone";
+    if (phone.isNotEmpty) {
+      return "${favoritesKey}_phone_$phone";
+    }
 
     return "${favoritesKey}_guest";
   }
@@ -289,8 +235,8 @@ class Session {
   }
 
   static Future<List<String>> getFavoriteAdIds() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getStringList(favoriteKeyForUser()) ?? [];
+    final prefs = await _prefs;
+    return prefs.getStringList(favoriteKeyForUser()) ?? <String>[];
   }
 
   static Future<bool> isFavoriteAd(String adId) async {
@@ -303,8 +249,43 @@ class Session {
   }
 
   static Future<bool> isFavoriteMap(Map ad) async {
-    final adId = adIdOf(ad);
-    return isFavoriteAd(adId);
+    return isFavoriteAd(adIdOf(ad));
+  }
+
+  static Future<void> addFavoriteAd(String adId) async {
+    final cleanId = adId.trim();
+
+    if (cleanId.isEmpty) return;
+
+    final prefs = await _prefs;
+    final key = favoriteKeyForUser();
+    final ids = prefs.getStringList(key) ?? <String>[];
+
+    if (!ids.contains(cleanId)) {
+      ids.add(cleanId);
+      await prefs.setStringList(key, ids);
+    }
+  }
+
+  static Future<void> addFavoriteMap(Map ad) async {
+    await addFavoriteAd(adIdOf(ad));
+  }
+
+  static Future<void> removeFavoriteAd(String adId) async {
+    final cleanId = adId.trim();
+
+    if (cleanId.isEmpty) return;
+
+    final prefs = await _prefs;
+    final key = favoriteKeyForUser();
+    final ids = prefs.getStringList(key) ?? <String>[];
+
+    ids.remove(cleanId);
+    await prefs.setStringList(key, ids);
+  }
+
+  static Future<void> removeFavoriteMap(Map ad) async {
+    await removeFavoriteAd(adIdOf(ad));
   }
 
   static Future<bool> toggleFavoriteAd(String adId) async {
@@ -312,9 +293,9 @@ class Session {
 
     if (cleanId.isEmpty) return false;
 
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _prefs;
     final key = favoriteKeyForUser();
-    final ids = prefs.getStringList(key) ?? [];
+    final ids = prefs.getStringList(key) ?? <String>[];
 
     if (ids.contains(cleanId)) {
       ids.remove(cleanId);
@@ -328,25 +309,11 @@ class Session {
   }
 
   static Future<bool> toggleFavoriteMap(Map ad) async {
-    final adId = adIdOf(ad);
-    return toggleFavoriteAd(adId);
-  }
-
-  static Future<void> removeFavoriteAd(String adId) async {
-    final cleanId = adId.trim();
-
-    if (cleanId.isEmpty) return;
-
-    final prefs = await SharedPreferences.getInstance();
-    final key = favoriteKeyForUser();
-    final ids = prefs.getStringList(key) ?? [];
-
-    ids.remove(cleanId);
-    await prefs.setStringList(key, ids);
+    return toggleFavoriteAd(adIdOf(ad));
   }
 
   static Future<void> clearFavorites() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _prefs;
     await prefs.remove(favoriteKeyForUser());
   }
 }

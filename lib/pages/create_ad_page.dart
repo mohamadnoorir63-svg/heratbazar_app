@@ -3,7 +3,8 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
-
+import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
 import '../core/api.dart';
 import '../core/session.dart';
 import 'auth_page.dart';
@@ -21,14 +22,17 @@ class CreateAdPage extends StatefulWidget {
 }
 
 class _CreateAdPageState extends State<CreateAdPage> {
-  final picker = ImagePicker();
+  final ImagePicker picker = ImagePicker();
 
   bool loading = false;
   bool categorySelected = false;
+  bool locationLoading = false;
+
+  double? latitude;
+  double? longitude;
 
   String mainCategory = "";
   String subCategory = "";
-
   int categoryId = 3;
 
   String province = "هرات";
@@ -38,18 +42,29 @@ class _CreateAdPageState extends State<CreateAdPage> {
   final descriptionController = TextEditingController();
   final priceController = TextEditingController();
   final phoneController = TextEditingController();
+  final addressController = TextEditingController();
 
   final brandController = TextEditingController();
   final modelController = TextEditingController();
   final yearController = TextEditingController();
   final colorController = TextEditingController();
-  final sizeController = TextEditingController();
   final conditionController = TextEditingController();
+  final sizeController = TextEditingController();
+
+  final warrantyController = TextEditingController();
+  final originalBoxController = TextEditingController();
+  final storageController = TextEditingController();
+  final ramController = TextEditingController();
+  final processorController = TextEditingController();
+  final batteryController = TextEditingController();
+  final screenSizeController = TextEditingController();
+  final serialController = TextEditingController();
+  final accessoriesController = TextEditingController();
+  final repairController = TextEditingController();
 
   final meterController = TextEditingController();
   final roomsController = TextEditingController();
   final floorController = TextEditingController();
-  final addressController = TextEditingController();
   final rentController = TextEditingController();
   final depositController = TextEditingController();
 
@@ -78,6 +93,9 @@ class _CreateAdPageState extends State<CreateAdPage> {
   final List<String> existingImageUrls = [];
 
   bool get isEditMode => widget.ad != null;
+
+  static const Color primaryColor = Color(0xFF5B3FD6);
+  static const Color bgColor = Color(0xFFF7F8FA);
 
   final List<Map<String, dynamic>> mainCategories = [
     {
@@ -119,6 +137,10 @@ class _CreateAdPageState extends State<CreateAdPage> {
         "ماشین لباس‌شویی",
         "کمره",
         "جنراتور",
+        "پرنتر",
+        "اسپیکر و صوتی",
+        "کنسول بازی",
+        "ساعت هوشمند",
       ],
     },
     {
@@ -209,8 +231,7 @@ class _CreateAdPageState extends State<CreateAdPage> {
       ],
     },
   ];
-
-  final provinces = [
+  final List<String> provinces = [
     "هرات",
     "کابل",
     "قندهار",
@@ -221,7 +242,32 @@ class _CreateAdPageState extends State<CreateAdPage> {
     "غزنی",
     "بامیان",
     "هلمند",
+    "بدغیس",
+    "بغلان",
+    "دایکندی",
+    "فاریاب",
+    "غور",
+    "جوزجان",
+    "کاپیسا",
+    "خوست",
+    "کنر",
+    "کندز",
+    "لغمان",
+    "لوگر",
+    "میدان وردک",
+    "نورستان",
+    "نیمروز",
+    "پکتیا",
+    "پکتیکا",
+    "پنجشیر",
+    "پروان",
+    "سمنگان",
+    "سرپل",
+    "تخار",
+    "ارزگان",
+    "زابل",
   ];
+
   final Map<String, List<String>> districts = {
     "هرات": [
       "مرکز هرات",
@@ -256,15 +302,403 @@ class _CreateAdPageState extends State<CreateAdPage> {
       "کلکان",
       "گلدره",
       "فرزه",
+      "میر بچه کوت",
     ],
-    "قندهار": ["مرکز قندهار"],
-    "بلخ": ["مرکز مزار شریف"],
-    "ننگرهار": ["مرکز جلال‌آباد"],
-    "بدخشان": ["مرکز فیض‌آباد"],
-    "فراه": ["مرکز فراه"],
-    "غزنی": ["مرکز غزنی"],
-    "بامیان": ["مرکز بامیان"],
-    "هلمند": ["مرکز لشکرگاه"],
+    "قندهار": [
+      "مرکز قندهار",
+      "دامان",
+      "ارغنداب",
+      "پنجوایی",
+      "ژیری",
+      "شاه ولی کوت",
+      "میوند",
+      "سپین بولدک",
+      "معروف",
+      "ریگستان",
+      "تخته پل",
+      "ارغستان",
+      "نیش",
+      "خاکریز",
+      "غورک",
+      "میانشین",
+    ],
+    "بلخ": [
+      "مرکز مزار شریف",
+      "بلخ",
+      "چمتال",
+      "چارکنت",
+      "دولت‌آباد",
+      "دهدادی",
+      "خلم",
+      "کشنده",
+      "کلدار",
+      "مارمل",
+      "نهر شاهی",
+      "شورتپه",
+      "زاری",
+    ],
+    "ننگرهار": [
+      "مرکز جلال‌آباد",
+      "اچین",
+      "بتی کوت",
+      "بهسود",
+      "چپرهار",
+      "دره نور",
+      "گوشته",
+      "حصارک",
+      "خوگیانی",
+      "کامه",
+      "کوت",
+      "کوز کنر",
+      "لعل پور",
+      "مهمند دره",
+      "نازیان",
+      "پچیراگام",
+      "رودات",
+      "شینوار",
+      "سرخ رود",
+    ],
+    "بدخشان": [
+      "مرکز فیض‌آباد",
+      "ارگو",
+      "ارغنجخواه",
+      "بهارک",
+      "درایم",
+      "اشکاشم",
+      "جرم",
+      "کشم",
+      "خواهان",
+      "کوف آب",
+      "کران و منجان",
+      "مایمی",
+      "نسی",
+      "راغ",
+      "شغنان",
+      "شهر بزرگ",
+      "تشکان",
+      "واخان",
+      "وردوج",
+      "یفتل",
+    ],
+    "فراه": [
+      "مرکز فراه",
+      "بالابلوک",
+      "بکواه",
+      "گلستان",
+      "خاک سفید",
+      "لاش و جوین",
+      "پشت رود",
+      "پرچمن",
+      "شیب کوه",
+      "انار دره",
+      "قلعه کاه",
+    ],
+    "غزنی": [
+      "مرکز غزنی",
+      "آب بند",
+      "اجرستان",
+      "اندار",
+      "ده یک",
+      "گیرو",
+      "جاغوری",
+      "خواجه عمری",
+      "مالستان",
+      "مقر",
+      "ناوه",
+      "ناور",
+      "قره باغ",
+      "رشیدان",
+      "واغظ",
+      "ولی محمد شهید",
+      "زنه خان",
+    ],
+    "بامیان": [
+      "مرکز بامیان",
+      "یکاولنگ",
+      "پنجاب",
+      "ورس",
+      "سیغان",
+      "کهمرد",
+      "شیبر",
+    ],
+    "هلمند": [
+      "مرکز لشکرگاه",
+      "باغران",
+      "دیشو",
+      "گرمسیر",
+      "گرشک",
+      "کجکی",
+      "خانشین",
+      "موسی قلعه",
+      "نادعلی",
+      "ناوه بارکزایی",
+      "نوزاد",
+      "ریگ",
+      "سنگین",
+      "واشیر",
+    ],
+    "بدغیس": [
+      "مرکز قلعه نو",
+      "آب کمری",
+      "بالا مرغاب",
+      "غورماچ",
+      "جوند",
+      "مقر",
+      "قادس",
+    ],
+    "بغلان": [
+      "مرکز پلخمری",
+      "اندراب",
+      "بغلان مرکزی",
+      "برکه",
+      "ده صلاح",
+      "دوشی",
+      "فرنگ و غارو",
+      "گذرگاه نور",
+      "خنجان",
+      "خوست و فرنگ",
+      "نهرین",
+      "پل حصار",
+      "تاله و برفک",
+    ],
+    "دایکندی": [
+      "مرکز نیلی",
+      "اشترلی",
+      "خدیر",
+      "کجران",
+      "کیتی",
+      "میرامور",
+      "سنگ تخت",
+      "شهرستان",
+    ],
+    "فاریاب": [
+      "مرکز میمنه",
+      "المار",
+      "اندخوی",
+      "بلچراغ",
+      "دولت‌آباد",
+      "گرزیوان",
+      "خان چهارباغ",
+      "خواجه سبزپوش",
+      "کوهستان",
+      "قرغان",
+      "قیصار",
+      "شیرین تگاب",
+    ],
+    "غور": [
+      "مرکز فیروزکوه",
+      "چغچران",
+      "چارسده",
+      "دولینه",
+      "دولت یار",
+      "لعل و سرجنگل",
+      "پسابند",
+      "ساغر",
+      "شهرک",
+      "تیوره",
+      "تولک",
+    ],
+    "جوزجان": [
+      "مرکز شبرغان",
+      "آقچه",
+      "درزاب",
+      "فیض‌آباد",
+      "خم آب",
+      "خواجه دوکوه",
+      "مردیان",
+      "منگجک",
+      "قرقین",
+    ],
+    "کاپیسا": [
+      "مرکز محمود راقی",
+      "اله سای",
+      "حصه اول کوهستان",
+      "حصه دوم کوهستان",
+      "کوه بند",
+      "نجراب",
+      "تگاب",
+    ],
+    "خوست": [
+      "مرکز خوست",
+      "باک",
+      "گربز",
+      "جانی خیل",
+      "مندوزی",
+      "نادرشاه کوت",
+      "قلندر",
+      "صبری",
+      "شمل",
+      "سپیره",
+      "تنی",
+      "تیرزایی",
+    ],
+    "کنر": [
+      "مرکز اسعدآباد",
+      "برکنر",
+      "چپه دره",
+      "دانگام",
+      "دره پیچ",
+      "غازی آباد",
+      "خاص کنر",
+      "مروره",
+      "ناری",
+      "نورگل",
+      "سرکانی",
+      "شیگل",
+      "وته پور",
+    ],
+    "کندز": [
+      "مرکز کندز",
+      "علی آباد",
+      "چهاردره",
+      "خان آباد",
+      "قلعه زال",
+      "امام صاحب",
+      "دشت ارچی",
+    ],
+    "لغمان": [
+      "مرکز مهترلام",
+      "الینگار",
+      "علیشنگ",
+      "دولت شاه",
+      "قرغه‌ای",
+    ],
+    "لوگر": [
+      "مرکز پل علم",
+      "برکی برک",
+      "خوشی",
+      "محمد آغه",
+      "چرخ",
+      "خروار",
+      "ازره",
+    ],
+    "میدان وردک": [
+      "مرکز میدان شهر",
+      "چک",
+      "دایمیرداد",
+      "حصه اول بهسود",
+      "جلریز",
+      "مرکز بهسود",
+      "نرخ",
+      "سیدآباد",
+    ],
+    "نورستان": [
+      "مرکز پارون",
+      "برگ متال",
+      "دوآب",
+      "کامدیش",
+      "مندول",
+      "نورگرام",
+      "واما",
+      "وایگل",
+    ],
+    "نیمروز": [
+      "مرکز زرنج",
+      "چهاربرجک",
+      "چخانسور",
+      "خاشرود",
+      "کنگ",
+    ],
+    "پکتیا": [
+      "مرکز گردیز",
+      "احمدآباد",
+      "جانی خیل",
+      "لجه منگل",
+      "سید کرم",
+      "شواک",
+      "وزی زدران",
+      "زازی",
+      "زرمت",
+    ],
+    "پکتیکا": [
+      "مرکز شرنه",
+      "برمل",
+      "دیله",
+      "گومل",
+      "گیان",
+      "جانی خیل",
+      "مته خان",
+      "نکه",
+      "اورگون",
+      "سروبی",
+      "سرحوضه",
+      "وازه خواه",
+      "یحیی خیل",
+      "یوسف خیل",
+      "زیروک",
+    ],
+    "پنجشیر": [
+      "مرکز بازارک",
+      "عنابه",
+      "دره",
+      "پریان",
+      "رخه",
+      "شتل",
+    ],
+    "پروان": [
+      "مرکز چاریکار",
+      "بگرام",
+      "جبل السراج",
+      "سالنگ",
+      "سیدخیل",
+      "شیخ علی",
+      "شینواری",
+      "سرخ پارسا",
+    ],
+    "سمنگان": [
+      "مرکز ایبک",
+      "دره صوف بالا",
+      "دره صوف پایین",
+      "حضرت سلطان",
+      "خرم و سارباغ",
+      "روی دوآب",
+    ],
+    "سرپل": [
+      "مرکز سرپل",
+      "بلخاب",
+      "گوسفندی",
+      "کوهستانات",
+      "صیاد",
+      "سوزمه قلعه",
+    ],
+    "تخار": [
+      "مرکز تالقان",
+      "بهارک",
+      "بنگی",
+      "چاه آب",
+      "چال",
+      "درقد",
+      "دشت قلعه",
+      "فرخار",
+      "کلفگان",
+      "خواجه بهاءالدین",
+      "خواجه غار",
+      "نمک آب",
+      "رستاق",
+      "ورسج",
+      "ینگی قلعه",
+    ],
+    "ارزگان": [
+      "مرکز ترینکوت",
+      "چوره",
+      "دهراوود",
+      "گیزاب",
+      "خاص ارزگان",
+      "شهید حساس",
+    ],
+    "زابل": [
+      "مرکز قلات",
+      "ارغنداب",
+      "اتغر",
+      "دایچوپان",
+      "کاکر",
+      "میزان",
+      "نوبهار",
+      "شاه جوی",
+      "شملزی",
+      "شینکی",
+      "ترنک و جلدک",
+    ],
   };
 
   @override
@@ -273,16 +707,6 @@ class _CreateAdPageState extends State<CreateAdPage> {
 
     if (isEditMode) {
       loadAdForEdit();
-    } else {
-      fillPhoneFromLoggedUser();
-    }
-  }
-
-  void fillPhoneFromLoggedUser() {
-    final phone = Session.userPhone;
-
-    if (phone.isNotEmpty) {
-      phoneController.text = phone;
     }
   }
 
@@ -296,6 +720,10 @@ class _CreateAdPageState extends State<CreateAdPage> {
     titleController.text = adText("title");
     priceController.text = adText("price");
     phoneController.text = adText("phone");
+    addressController.text = adText("address");
+
+    latitude = double.tryParse(adText("latitude"));
+    longitude = double.tryParse(adText("longitude"));
 
     province = adText("province").isEmpty ? "هرات" : adText("province");
     district = adText("district").isEmpty ? "مرکز هرات" : adText("district");
@@ -305,7 +733,6 @@ class _CreateAdPageState extends State<CreateAdPage> {
     readDescription(adText("description"));
 
     final images = widget.ad?["images"];
-
     if (images is List) {
       for (final img in images) {
         final url = Api.fullImageUrl(img.toString());
@@ -316,7 +743,6 @@ class _CreateAdPageState extends State<CreateAdPage> {
     }
 
     final imageUrl = Api.fullImageUrl(adText("image_url"));
-
     if (imageUrl.isNotEmpty && !existingImageUrls.contains(imageUrl)) {
       existingImageUrls.insert(0, imageUrl);
     }
@@ -331,6 +757,15 @@ class _CreateAdPageState extends State<CreateAdPage> {
           : adText("category_name");
     }
 
+    if (!provinces.contains(province)) {
+      province = "هرات";
+    }
+
+    final districtList = districts[province] ?? ["مرکز هرات"];
+    if (!districtList.contains(district)) {
+      district = districtList.first;
+    }
+
     categorySelected = true;
   }
 
@@ -339,7 +774,6 @@ class _CreateAdPageState extends State<CreateAdPage> {
 
     for (final line in description.split("\n")) {
       final text = line.trim();
-
       if (text.isEmpty) continue;
 
       if (text.startsWith("دسته اصلی:")) {
@@ -362,17 +796,22 @@ class _CreateAdPageState extends State<CreateAdPage> {
         continue;
       }
 
+      if (text.startsWith("آدرس دقیق:")) {
+        if (addressController.text.trim().isEmpty) {
+          addressController.text = text.replaceFirst("آدرس دقیق:", "").trim();
+        }
+        continue;
+      }
+
       if (text.startsWith("مشخصات")) continue;
 
       if (text.contains(":")) {
         final parts = text.split(":");
-
         if (parts.length >= 2) {
           final key = parts.first.trim();
           final value = parts.sublist(1).join(":").trim();
           setFieldFromDescription(key, value);
         }
-
         continue;
       }
 
@@ -381,20 +820,42 @@ class _CreateAdPageState extends State<CreateAdPage> {
 
     descriptionController.text = normalLines.join("\n");
   }
-
   void setFieldFromDescription(String key, String value) {
     if (key == "برند" || key == "برند/نوع" || key == "عنوان") {
       brandController.text = value;
     } else if (key == "مدل" || key == "مدل/اندازه") {
       modelController.text = value;
-    } else if (key == "سال ساخت" || key == "سال/نسخه") {
+    } else if (key == "سال ساخت" ||
+        key == "سال/نسخه" ||
+        key == "سال / نسخه") {
       yearController.text = value;
     } else if (key == "رنگ") {
       colorController.text = value;
     } else if (key == "وضعیت") {
       conditionController.text = value;
-    } else if (key == "اندازه/حافظه/ظرفیت") {
+    } else if (key == "اندازه/حافظه/ظرفیت" ||
+        key == "اندازه / ظرفیت کلی") {
       sizeController.text = value;
+    } else if (key == "گارانتی") {
+      warrantyController.text = value;
+    } else if (key == "جعبه اصلی") {
+      originalBoxController.text = value;
+    } else if (key == "حافظه داخلی") {
+      storageController.text = value;
+    } else if (key == "رم") {
+      ramController.text = value;
+    } else if (key == "پردازنده") {
+      processorController.text = value;
+    } else if (key == "باتری" || key == "وضعیت باتری") {
+      batteryController.text = value;
+    } else if (key == "اندازه صفحه") {
+      screenSizeController.text = value;
+    } else if (key == "سریال / IMEI" || key == "سریال/IMEI") {
+      serialController.text = value;
+    } else if (key == "لوازم همراه") {
+      accessoriesController.text = value;
+    } else if (key == "سابقه تعمیر") {
+      repairController.text = value;
     } else if (key == "کیلومتر") {
       kmController.text = value;
     } else if (key == "تیل") {
@@ -451,7 +912,6 @@ class _CreateAdPageState extends State<CreateAdPage> {
     if (id == 4) return "لوازم الکترونیکی";
     if (id == 5) return "وسایل شخصی";
     if (id == 6) return "خدمات";
-
     return "لوازم الکترونیکی";
   }
 
@@ -462,21 +922,31 @@ class _CreateAdPageState extends State<CreateAdPage> {
     if (sub == "لپتاپ" || sub == "کمپیوتر") return 4;
     if (main == "وسایل شخصی") return 5;
     if (main == "خدمات" || main == "استخدام و کاریابی") return 6;
-
     return 3;
   }
+
   void clearCategoryFields() {
     brandController.clear();
     modelController.clear();
     yearController.clear();
     colorController.clear();
-    sizeController.clear();
     conditionController.clear();
+    sizeController.clear();
+
+    warrantyController.clear();
+    originalBoxController.clear();
+    storageController.clear();
+    ramController.clear();
+    processorController.clear();
+    batteryController.clear();
+    screenSizeController.clear();
+    serialController.clear();
+    accessoriesController.clear();
+    repairController.clear();
 
     meterController.clear();
     roomsController.clear();
     floorController.clear();
-    addressController.clear();
     rentController.clear();
     depositController.clear();
 
@@ -521,10 +991,7 @@ class _CreateAdPageState extends State<CreateAdPage> {
   }
 
   Future<bool> ensureLoggedIn() async {
-    if (Session.isLoggedIn) {
-      fillPhoneFromLoggedUser();
-      return true;
-    }
+    if (Session.isLoggedIn) return true;
 
     final result = await Navigator.push(
       context,
@@ -534,7 +1001,6 @@ class _CreateAdPageState extends State<CreateAdPage> {
     );
 
     if (result == true && Session.isLoggedIn) {
-      fillPhoneFromLoggedUser();
       setState(() {});
       return true;
     }
@@ -552,1204 +1018,1076 @@ class _CreateAdPageState extends State<CreateAdPage> {
     );
 
     if (result == true && Session.isLoggedIn) {
-      fillPhoneFromLoggedUser();
       setState(() {});
     }
   }
+  //===================== IMAGES =====================//
 
-  Future<void> pickImages() async {
-    if (loading) return;
+Future<void> pickImages() async {
+  if (loading) return;
 
-    final files = await picker.pickMultiImage(imageQuality: 80);
-    if (files.isEmpty) return;
+  final files = await picker.pickMultiImage(
+    imageQuality: 85,
+  );
 
-    final totalNow = existingImageUrls.length + selectedImages.length;
-    final remaining = 20 - totalNow;
+  if (files.isEmpty) return;
 
-    if (remaining <= 0) {
-      showMessage("حداکثر ۲۰ عکس می‌توانید انتخاب کنید");
+  final remain = 20 - (selectedImages.length + existingImageUrls.length);
+
+  if (remain <= 0) {
+    showMessage("حداکثر ۲۰ عکس مجاز است");
+    return;
+  }
+
+  final picked = files.take(remain).toList();
+
+  for (final f in picked) {
+    selectedImages.add(f);
+    selectedImageBytes.add(await f.readAsBytes());
+  }
+
+  setState(() {});
+}
+
+void removeNewImage(int index) {
+  setState(() {
+    selectedImages.removeAt(index);
+    selectedImageBytes.removeAt(index);
+  });
+}
+
+void removeExistingImage(int index) {
+  setState(() {
+    existingImageUrls.removeAt(index);
+  });
+}
+
+Future<String?> uploadOneImage(XFile image) async {
+  try {
+    return await Api.uploadImageBytes(
+      bytes: await image.readAsBytes(),
+      filename: image.name,
+    );
+  } catch (_) {
+    return null;
+  }
+}
+
+Future<List<String>> uploadAllImages() async {
+  final result = <String>[];
+
+  result.addAll(existingImageUrls);
+
+  for (final img in selectedImages) {
+    final url = await uploadOneImage(img);
+
+    if (url != null && url.isNotEmpty) {
+      result.add(url);
+    }
+  }
+
+  return result;
+}
+
+//===================== GPS =====================//
+
+Future<void> detectCurrentLocation() async {
+  if (locationLoading) return;
+
+  setState(() => locationLoading = true);
+
+  try {
+    final enabled = await Geolocator.isLocationServiceEnabled();
+
+    if (!enabled) {
+      showMessage("GPS خاموش است. موقعیت اختیاری است، می‌توانید بدون آن هم ثبت کنید.");
       return;
     }
 
-    final limited = files.take(remaining).toList();
-    final bytesList = <Uint8List>[];
+    var permission = await Geolocator.checkPermission();
 
-    for (final file in limited) {
-      bytesList.add(await file.readAsBytes());
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
     }
 
-    setState(() {
-      selectedImages.addAll(limited);
-      selectedImageBytes.addAll(bytesList);
-    });
-
-    if (files.length > remaining) {
-      showMessage("فقط $remaining عکس اضافه شد؛ حداکثر ۲۰ عکس مجاز است");
-    }
-  }
-
-  void removeNewImage(int index) {
-    setState(() {
-      selectedImages.removeAt(index);
-      selectedImageBytes.removeAt(index);
-    });
-  }
-
-  void removeExistingImage(int index) {
-    setState(() {
-      existingImageUrls.removeAt(index);
-    });
-  }
-
-  Future<String?> uploadOneImage(XFile image) async {
-    try {
-      return await Api.uploadImageBytes(
-        bytes: await image.readAsBytes(),
-        filename: image.name,
-      );
-    } catch (_) {
-      return null;
-    }
-  }
-
-  Future<List<String>> uploadAllImages() async {
-    final urls = <String>[];
-
-    urls.addAll(existingImageUrls);
-
-    for (final image in selectedImages) {
-      final url = await uploadOneImage(image);
-
-      if (url != null && url.isNotEmpty) {
-        urls.add(url);
-      }
-    }
-
-    return urls;
-  }
-
-  bool get isPropertyForRent {
-    return subCategory == "خانه کرایی" ||
-        subCategory == "آپارتمان" ||
-        subCategory == "دکان و مغازه" ||
-        subCategory == "دفتر کار" ||
-        subCategory == "گدام";
-  }
-
-  bool get isHouseLikeProperty {
-    return subCategory == "خانه فروشی" ||
-        subCategory == "خانه کرایی" ||
-        subCategory == "آپارتمان";
-  }
-
-  bool get isLandProperty {
-    return subCategory == "زمین";
-  }
-
-  bool get isShopProperty {
-    return subCategory == "دکان و مغازه";
-  }
-
-  bool get isOfficeProperty {
-    return subCategory == "دفتر کار";
-  }
-
-  bool get isWarehouseProperty {
-    return subCategory == "گدام";
-  }
-
-  void writeIfNotEmpty(
-    StringBuffer buffer,
-    String label,
-    TextEditingController controller,
-  ) {
-    final value = controller.text.trim();
-
-    if (value.isNotEmpty) {
-      buffer.writeln("$label: $value");
-    }
-  }
-
-  String buildFullDescription() {
-    final normal = descriptionController.text.trim();
-    final buffer = StringBuffer();
-
-    if (normal.isNotEmpty) {
-      buffer.writeln(normal);
-      buffer.writeln();
-    }
-
-    buffer.writeln("دسته اصلی: $mainCategory");
-    buffer.writeln("زیر دسته: $subCategory");
-    buffer.writeln("ولایت: $province");
-    buffer.writeln("ولسوالی: $district");
-
-    if (mainCategory == "وسایل نقلیه") {
-      buffer.writeln();
-      buffer.writeln("مشخصات وسایط:");
-
-      writeIfNotEmpty(buffer, "برند/نوع", brandController);
-      writeIfNotEmpty(buffer, "مدل", modelController);
-      writeIfNotEmpty(buffer, "سال ساخت", yearController);
-      writeIfNotEmpty(buffer, "رنگ", colorController);
-
-      if (subCategory == "موتر" || subCategory == "موترسایکل") {
-        writeIfNotEmpty(buffer, "کیلومتر", kmController);
-        writeIfNotEmpty(buffer, "تیل", fuelController);
-        writeIfNotEmpty(buffer, "گیربکس", gearController);
-        writeIfNotEmpty(buffer, "اسناد/پلاک", documentController);
-      }
-
-      if (subCategory == "بایسکل") {
-        writeIfNotEmpty(buffer, "مدل/اندازه", modelController);
-        writeIfNotEmpty(buffer, "وضعیت", conditionController);
-      }
-
-      if (subCategory == "پرزه موتر" || subCategory == "تایر و پرزه") {
-        writeIfNotEmpty(buffer, "مدل/اندازه", modelController);
-        writeIfNotEmpty(buffer, "وضعیت", conditionController);
-      }
-    }
-
-    if (mainCategory == "املاک") {
-      buffer.writeln();
-      buffer.writeln("مشخصات ملک:");
-
-      writeIfNotEmpty(buffer, "نوع ملک", propertyTypeController);
-      writeIfNotEmpty(buffer, "متراژ", meterController);
-
-      if (isHouseLikeProperty) {
-        writeIfNotEmpty(buffer, "تعداد اتاق", roomsController);
-        writeIfNotEmpty(buffer, "تعداد تشناب", bathroomController);
-        writeIfNotEmpty(buffer, "آشپزخانه", kitchenController);
-        writeIfNotEmpty(buffer, "طبقه/منزل", floorController);
-        writeIfNotEmpty(buffer, "پارکینگ", parkingController);
-        writeIfNotEmpty(buffer, "نوع سند", documentController);
-        writeIfNotEmpty(buffer, "امکانات", facilityController);
-      }
-
-      if (isLandProperty) {
-        writeIfNotEmpty(buffer, "نوع استفاده زمین", landUseController);
-        writeIfNotEmpty(buffer, "نوع سند", documentController);
-        writeIfNotEmpty(buffer, "جهت زمین", directionController);
-        writeIfNotEmpty(buffer, "بر جاده", frontageController);
-        writeIfNotEmpty(buffer, "آب و برق", waterPowerController);
-      }
-
-      if (isShopProperty) {
-        writeIfNotEmpty(buffer, "طبقه/منزل", floorController);
-        writeIfNotEmpty(buffer, "بر جاده", frontageController);
-        writeIfNotEmpty(buffer, "آب و برق", waterPowerController);
-        writeIfNotEmpty(buffer, "نوع سند", documentController);
-        writeIfNotEmpty(buffer, "امکانات", facilityController);
-      }
-
-      if (isOfficeProperty) {
-        writeIfNotEmpty(buffer, "تعداد اتاق", roomsController);
-        writeIfNotEmpty(buffer, "تعداد تشناب", bathroomController);
-        writeIfNotEmpty(buffer, "طبقه/منزل", floorController);
-        writeIfNotEmpty(buffer, "پارکینگ", parkingController);
-        writeIfNotEmpty(buffer, "آب و برق", waterPowerController);
-        writeIfNotEmpty(buffer, "امکانات", facilityController);
-      }
-
-      if (isWarehouseProperty) {
-        writeIfNotEmpty(buffer, "ارتفاع", heightController);
-        writeIfNotEmpty(buffer, "آب و برق", waterPowerController);
-        writeIfNotEmpty(buffer, "بر جاده", frontageController);
-        writeIfNotEmpty(buffer, "نوع سند", documentController);
-        writeIfNotEmpty(buffer, "امکانات", facilityController);
-      }
-
-      if (isPropertyForRent) {
-        writeIfNotEmpty(buffer, "کرایه", rentController);
-        writeIfNotEmpty(buffer, "گروی", depositController);
-      }
-
-      writeIfNotEmpty(buffer, "آدرس دقیق", addressController);
-    }
-    if (mainCategory == "لوازم الکترونیکی") {
-      buffer.writeln();
-      buffer.writeln("مشخصات وسیله:");
-
-      writeIfNotEmpty(buffer, "برند", brandController);
-      writeIfNotEmpty(buffer, "مدل", modelController);
-      writeIfNotEmpty(buffer, "سال/نسخه", yearController);
-      writeIfNotEmpty(buffer, "رنگ", colorController);
-      writeIfNotEmpty(buffer, "اندازه/حافظه/ظرفیت", sizeController);
-      writeIfNotEmpty(buffer, "وضعیت", conditionController);
-    }
-
-    if (mainCategory == "مربوط به خانه" ||
-        mainCategory == "وسایل شخصی" ||
-        mainCategory == "سرگرمی و فراغت" ||
-        mainCategory == "لوازم کودک" ||
-        mainCategory == "برای کسب و کار") {
-      buffer.writeln();
-      buffer.writeln("مشخصات کالا:");
-
-      writeIfNotEmpty(buffer, "برند/نوع", brandController);
-      writeIfNotEmpty(buffer, "مدل/اندازه", modelController);
-      writeIfNotEmpty(buffer, "رنگ", colorController);
-      writeIfNotEmpty(buffer, "وضعیت", conditionController);
-    }
-
-    if (mainCategory == "خدمات" || mainCategory == "استخدام و کاریابی") {
-      buffer.writeln();
-      buffer.writeln("مشخصات کار/خدمات:");
-
-      writeIfNotEmpty(buffer, "عنوان", brandController);
-      writeIfNotEmpty(buffer, "معاش/قیمت", salaryController);
-      writeIfNotEmpty(buffer, "وقت کاری", workTimeController);
-      writeIfNotEmpty(buffer, "تجربه لازم", experienceController);
-      writeIfNotEmpty(buffer, "آدرس", addressController);
-    }
-
-    return buffer.toString();
-  }
-
-  Future<void> submitAd() async {
-    if (loading) return;
-
-    final logged = await ensureLoggedIn();
-    if (!logged) return;
-
-    if (titleController.text.trim().isEmpty) {
-      showMessage("عنوان آگهی را وارد کنید");
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) {
+      showMessage("اجازه موقعیت داده نشد. موقعیت اختیاری است.");
       return;
     }
 
-    if (phoneController.text.trim().isEmpty) {
-      showMessage("شماره تماس را وارد کنید");
-      return;
-    }
+    final pos = await Geolocator.getCurrentPosition(
+      desiredAccuracy: LocationAccuracy.high,
+    );
 
-    if (mainCategory.isEmpty || subCategory.isEmpty) {
-      showMessage("دسته‌بندی آگهی را انتخاب کنید");
-      return;
-    }
-
-    setState(() => loading = true);
+    String foundAddress = "";
 
     try {
-      final ownerToken = await Session.getOwnerToken();
-      final imageUrls = await uploadAllImages();
-
-      final body = {
-        "title": titleController.text.trim(),
-        "description": buildFullDescription(),
-        "price": int.tryParse(priceController.text.trim()) ?? 0,
-        "phone": phoneController.text.trim(),
-        "province": province,
-        "district": district,
-        "city": "$province - $district",
-        "category_id": categoryId,
-        "image_url": imageUrls.isEmpty ? null : imageUrls.first,
-        "images": imageUrls,
-        "owner_token": ownerToken,
-        "user_id": Session.userId,
-      };
-
-      await Api.saveAd(
-        isEdit: isEditMode,
-        adId: isEditMode ? int.tryParse(widget.ad!["id"].toString()) : null,
-        body: body,
+      final places = await placemarkFromCoordinates(
+        pos.latitude,
+        pos.longitude,
       );
 
-      if (!mounted) return;
+      if (places.isNotEmpty) {
+        final p = places.first;
 
-      showMessage(
-        isEditMode ? "آگهی با موفقیت ویرایش شد" : "آگهی با موفقیت ثبت شد",
-      );
+        foundAddress = [
+          p.street,
+          p.subLocality,
+          p.locality,
+          p.administrativeArea,
+          p.country,
+        ].where((e) => e != null && e.trim().isNotEmpty).join("، ");
+      }
+    } catch (_) {}
 
-      Navigator.pop(context, true);
-    } catch (e) {
-      showMessage(e.toString().replaceAll("Exception:", "").trim());
+    setState(() {
+      latitude = pos.latitude;
+      longitude = pos.longitude;
+
+      if (foundAddress.isNotEmpty) {
+        addressController.text = foundAddress;
+      }
+    });
+
+    showMessage("موقعیت ثبت شد. این بخش اختیاری است.");
+  } catch (_) {
+    showMessage("موقعیت گرفته نشد. بدون موقعیت هم می‌توانید آگهی ثبت کنید.");
+  } finally {
+    if (mounted) {
+      setState(() => locationLoading = false);
     }
+  }
+}
 
-    if (mounted) setState(() => loading = false);
+//===================== PROPERTY TYPE =====================//
+
+bool get isPropertyForRent =>
+    subCategory == "خانه کرایی" ||
+    subCategory == "آپارتمان" ||
+    subCategory == "دفتر کار" ||
+    subCategory == "دکان و مغازه" ||
+    subCategory == "گدام";
+
+bool get isHouseLikeProperty =>
+    subCategory == "خانه فروشی" ||
+    subCategory == "خانه کرایی" ||
+    subCategory == "آپارتمان";
+
+bool get isLandProperty => subCategory == "زمین";
+
+bool get isShopProperty => subCategory == "دکان و مغازه";
+
+bool get isOfficeProperty => subCategory == "دفتر کار";
+
+bool get isWarehouseProperty => subCategory == "گدام";
+
+//===================== DESCRIPTION =====================//
+
+void writeIfNotEmpty(
+  StringBuffer buffer,
+  String label,
+  TextEditingController controller,
+) {
+  final value = controller.text.trim();
+  if (value.isNotEmpty) {
+    buffer.writeln("$label: $value");
+  }
+}
+
+String buildFullDescription() {
+  final buffer = StringBuffer();
+
+  final normal = descriptionController.text.trim();
+  if (normal.isNotEmpty) {
+    buffer.writeln(normal);
+    buffer.writeln();
   }
 
-  void showMessage(String text) {
+  buffer.writeln("دسته اصلی: $mainCategory");
+  buffer.writeln("زیر دسته: $subCategory");
+  buffer.writeln("ولایت: $province");
+  buffer.writeln("ولسوالی: $district");
+
+  final address = addressController.text.trim();
+  if (address.isNotEmpty) {
+    buffer.writeln("آدرس دقیق: $address");
+  }
+
+  if (latitude != null && longitude != null) {
+    buffer.writeln("مختصات: $latitude,$longitude");
+  }
+
+  writeIfNotEmpty(buffer, "برند/نوع", brandController);
+  writeIfNotEmpty(buffer, "مدل", modelController);
+  writeIfNotEmpty(buffer, "سال ساخت", yearController);
+  writeIfNotEmpty(buffer, "رنگ", colorController);
+  writeIfNotEmpty(buffer, "وضعیت", conditionController);
+  writeIfNotEmpty(buffer, "متراژ", meterController);
+  writeIfNotEmpty(buffer, "تعداد اتاق", roomsController);
+  writeIfNotEmpty(buffer, "تعداد تشناب", bathroomController);
+  writeIfNotEmpty(buffer, "کیلومتر", kmController);
+  writeIfNotEmpty(buffer, "تیل", fuelController);
+  writeIfNotEmpty(buffer, "گیربکس", gearController);
+  writeIfNotEmpty(buffer, "نوع سند", documentController);
+  writeIfNotEmpty(buffer, "امکانات", facilityController);
+  writeIfNotEmpty(buffer, "کرایه", rentController);
+  writeIfNotEmpty(buffer, "گروی", depositController);
+  writeIfNotEmpty(buffer, "معاش/قیمت", salaryController);
+  writeIfNotEmpty(buffer, "وقت کاری", workTimeController);
+  writeIfNotEmpty(buffer, "تجربه لازم", experienceController);
+
+  return buffer.toString();
+}
+
+//===================== SUBMIT =====================//
+
+Future<void> submitAd() async {
+  if (loading) return;
+
+  final logged = await ensureLoggedIn();
+  if (!logged) return;
+
+  if (titleController.text.trim().isEmpty) {
+    showMessage("عنوان آگهی را وارد کنید");
+    return;
+  }
+
+  if (phoneController.text.trim().isEmpty) {
+    showMessage("شماره تماس را وارد کنید");
+    return;
+  }
+
+  if (mainCategory.isEmpty || subCategory.isEmpty) {
+    showMessage("دسته‌بندی آگهی را انتخاب کنید");
+    return;
+  }
+
+  if (addressController.text.trim().isEmpty) {
+    showMessage("آدرس دقیق را وارد کنید");
+    return;
+  }
+
+
+  setState(() {
+    loading = true;
+  });
+
+  try {
+    final ownerToken = await Session.getOwnerToken();
+    final imageUrls = await uploadAllImages();
+
+    final body = {
+      "title": titleController.text.trim(),
+      "description": buildFullDescription(),
+      "price": int.tryParse(priceController.text.trim()) ?? 0,
+      "phone": phoneController.text.trim(),
+      "province": province,
+      "district": district,
+      "city": "$province - $district",
+      "address": addressController.text.trim(),
+      "category_id": categoryId,
+      "image_url": imageUrls.isEmpty ? null : imageUrls.first,
+      "images": imageUrls,
+      "owner_token": ownerToken,
+      "user_id": Session.userId,
+      "latitude": latitude,
+      "longitude": longitude,
+    };
+
+    await Api.saveAd(
+      isEdit: isEditMode,
+      adId: isEditMode ? int.tryParse(widget.ad!["id"].toString()) : null,
+      body: body,
+    );
+
     if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(text),
-        behavior: SnackBarBehavior.floating,
-      ),
+    showMessage(
+      isEditMode ? "آگهی با موفقیت ویرایش شد" : "آگهی با موفقیت ثبت شد",
     );
+
+    Navigator.pop(context, true);
+  } catch (e) {
+    showMessage(e.toString().replaceAll("Exception:", "").trim());
   }
 
-  Widget textField(
-    TextEditingController controller,
-    String label, {
-    TextInputType type = TextInputType.text,
-    int maxLines = 1,
-    String? hint,
-  }) {
-    final isNumber = type == TextInputType.number;
+  if (mounted) {
+    setState(() {
+      loading = false;
+    });
+  }
+}
+void showMessage(String text) {
+  if (!mounted) return;
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: TextField(
-        controller: controller,
-        keyboardType: isNumber ? TextInputType.number : type,
-        inputFormatters:
-            isNumber ? [FilteringTextInputFormatter.digitsOnly] : [],
-        maxLines: maxLines,
-        decoration: InputDecoration(
-          labelText: label,
-          hintText: hint,
-          filled: true,
-          fillColor: Colors.white,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide(color: Colors.grey.shade300),
-          ),
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(text),
+      behavior: SnackBarBehavior.floating,
+    ),
+  );
+}
+
+Widget sectionCard({
+  required String title,
+  required IconData icon,
+  required List<Widget> children,
+}) {
+  return Container(
+    width: double.infinity,
+    margin: const EdgeInsets.only(bottom: 14),
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(18),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.04),
+          blurRadius: 12,
+          offset: const Offset(0, 4),
         ),
-      ),
-    );
-  }
-
-  Widget sectionTitle(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 18, bottom: 10),
-      child: Align(
-        alignment: Alignment.centerRight,
-        child: Text(
-          text,
-          style: const TextStyle(
-            fontSize: 19,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget dropdown<T>({
-    required T value,
-    required String label,
-    required List<T> items,
-    required Function(T?) onChanged,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: DropdownButtonFormField<T>(
-        value: value,
-        decoration: InputDecoration(
-          labelText: label,
-          filled: true,
-          fillColor: Colors.white,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide(color: Colors.grey.shade300),
-          ),
-        ),
-        items: items.map((item) {
-          return DropdownMenuItem<T>(
-            value: item,
-            child: Text(item.toString()),
-          );
-        }).toList(),
-        onChanged: loading ? null : onChanged,
-      ),
-    );
-  }
-
-  Widget buildCategoryList() {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF7F8FA),
-      appBar: AppBar(
-        title: Text(isEditMode ? "تغییر دسته‌بندی" : "دسته‌بندی آگهی‌ها"),
-        centerTitle: true,
-      ),
-      body: ListView.separated(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        itemCount: mainCategories.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 6),
-        itemBuilder: (context, index) {
-          final item = mainCategories[index];
-          final color = item["color"] as Color;
-
-          return Container(
-            margin: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.04),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: ListTile(
-              leading: CircleAvatar(
-                backgroundColor: color.withOpacity(0.14),
-                child: Icon(item["icon"] as IconData, color: color),
-              ),
-              title: Text(
-                item["name"].toString(),
-                textAlign: TextAlign.right,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              trailing: const Icon(Icons.chevron_left),
-              onTap: () {
-                showSubCategories(
-                  item["name"].toString(),
-                  List<String>.from(item["subs"] as List),
-                );
-              },
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  void showSubCategories(String main, List<String> subs) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: const Color(0xFFF7F8FA),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (_) {
-        return Directionality(
+      ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
           textDirection: TextDirection.rtl,
-          child: SafeArea(
-            child: SizedBox(
-              height: MediaQuery.of(context).size.height * 0.75,
-              child: Column(
-                children: [
-                  Container(
-                    margin: const EdgeInsets.only(top: 10, bottom: 8),
-                    width: 55,
-                    height: 5,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade400,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Row(
-                      children: [
-                        IconButton(
-                          onPressed: () => Navigator.pop(context),
-                          icon: const Icon(Icons.close),
-                        ),
-                        Expanded(
-                          child: Text(
-                            main,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 48),
-                      ],
-                    ),
-                  ),
-                  Expanded(
-                    child: ListView.separated(
-                      padding: const EdgeInsets.all(12),
-                      itemCount: subs.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 8),
-                      itemBuilder: (context, index) {
-                        final sub = subs[index];
-
-                        return Container(
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: ListTile(
-                            title: Text(
-                              sub,
-                              textAlign: TextAlign.right,
-                              style: const TextStyle(fontSize: 17),
-                            ),
-                            trailing: const Icon(Icons.chevron_left),
-                            onTap: () {
-                              Navigator.pop(context);
-                              selectCategory(main, sub);
-                            },
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ],
+          children: [
+            Icon(icon, color: primaryColor),
+            const SizedBox(width: 8),
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
               ),
             ),
-          ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        ...children,
+      ],
+    ),
+  );
+}
+
+Widget textField(
+  TextEditingController controller,
+  String label, {
+  TextInputType type = TextInputType.text,
+  int maxLines = 1,
+  String? hint,
+  bool required = false,
+}) {
+  final isNumber = type == TextInputType.number;
+
+  return Padding(
+    padding: const EdgeInsets.only(bottom: 12),
+    child: TextField(
+      controller: controller,
+      keyboardType: isNumber ? TextInputType.number : type,
+      inputFormatters: isNumber ? [FilteringTextInputFormatter.digitsOnly] : [],
+      maxLines: maxLines,
+      decoration: InputDecoration(
+        labelText: required ? "$label *" : label,
+        hintText: hint,
+        filled: true,
+        fillColor: const Color(0xFFF9FAFB),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+        ),
+      ),
+    ),
+  );
+}
+
+Widget dropdown<T>({
+  required T value,
+  required String label,
+  required List<T> items,
+  required Function(T?) onChanged,
+}) {
+  return Padding(
+    padding: const EdgeInsets.only(bottom: 12),
+    child: DropdownButtonFormField<T>(
+      value: value,
+      decoration: InputDecoration(
+        labelText: label,
+        filled: true,
+        fillColor: const Color(0xFFF9FAFB),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+        ),
+      ),
+      items: items.map((item) {
+        return DropdownMenuItem<T>(
+          value: item,
+          child: Text(item.toString()),
         );
-      },
-    );
-  }
-  Widget categoryHeader() {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: ListTile(
-        leading: const Icon(Icons.category),
-        title: Text(
-          "$mainCategory / $subCategory",
-          textAlign: TextAlign.right,
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        subtitle: const Text(
-          "برای تغییر دسته‌بندی روی این بخش بزنید",
-          textAlign: TextAlign.right,
-        ),
-        trailing: const Icon(Icons.edit),
-        onTap: loading ? null : backToCategories,
-      ),
-    );
-  }
+      }).toList(),
+      onChanged: loading ? null : onChanged,
+    ),
+  );
+}
 
-  Widget accountCard() {
-    final isLogged = Session.isLoggedIn;
-    final userName =
-        Session.userFullName.isEmpty ? "کاربر عزیز" : Session.userFullName;
-    final phone = Session.userPhone;
+Widget accountCard() {
+  final isLogged = Session.isLoggedIn;
+  final userName =
+      Session.userFullName.isEmpty ? "کاربر عزیز" : Session.userFullName;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: isLogged
-              ? [
-                  const Color(0xFFE8F5E9),
-                  const Color(0xFFF1F8E9),
-                ]
-              : [
-                  const Color(0xFFFFF3E0),
-                  const Color(0xFFFFF8E1),
-                ],
-        ),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: isLogged ? Colors.green.shade200 : Colors.orange.shade200,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
+  return sectionCard(
+    title: "حساب کاربری",
+    icon: Icons.person,
+    children: [
+      Row(
+        textDirection: TextDirection.rtl,
         children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: isLogged ? Colors.green.shade600 : Colors.orange.shade600,
-              borderRadius: BorderRadius.circular(16),
-            ),
+          CircleAvatar(
+            backgroundColor: isLogged ? Colors.green : Colors.orange,
             child: Icon(
-              isLogged ? Icons.verified_user : Icons.person_outline,
+              isLogged ? Icons.verified_user : Icons.login,
               color: Colors.white,
-              size: 26,
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  isLogged ? userName : "ورود به حساب",
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                if (isLogged && phone.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    phone,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.grey.shade700,
-                    ),
-                  ),
-                ],
-              ],
+            child: Text(
+              isLogged ? userName : "برای ثبت آگهی وارد حساب شوید",
+              textAlign: TextAlign.right,
+              style: const TextStyle(fontWeight: FontWeight.bold),
             ),
           ),
           TextButton(
             onPressed: loading
                 ? null
                 : () async {
-                    if (Session.isLoggedIn) {
+                    if (isLogged) {
                       await openAuthForChangeAccount();
                     } else {
                       await ensureLoggedIn();
-                      setState(() {});
                     }
                   },
-            child: Text(isLogged ? "تغییر" : "ورود"),
+            child: Text(isLogged ? "تغییر حساب" : "ورود"),
           ),
         ],
       ),
-    );
-  }
+    ],
+  );
+}
+Widget buildFormPage() {
+  return Scaffold(
+    backgroundColor: const Color(0xffF5F7FA),
+    appBar: AppBar(
+      elevation: 0,
+      centerTitle: true,
+      title: Text(
+        isEditMode ? "ویرایش آگهی" : "ثبت آگهی جدید",
+      ),
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back),
+        onPressed: loading ? null : backToCategories,
+      ),
+    ),
+    body: SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
 
-  Widget propertyFields() {
-    if (isLandProperty) {
-      return Column(
-        children: [
-          sectionTitle("مشخصات زمین"),
-          textField(meterController, "متراژ زمین", type: TextInputType.number),
-          textField(
-            landUseController,
-            "نوع استفاده زمین",
-            hint: "مثلاً رهایشی، تجارتی، زراعتی",
-          ),
-          textField(
-            documentController,
-            "نوع سند",
-            hint: "مثلاً قباله، عرفی، رسمی",
-          ),
-          textField(directionController, "جهت زمین"),
-          textField(frontageController, "بر جاده / سرک"),
-          textField(waterPowerController, "آب و برق"),
-          textField(addressController, "آدرس دقیق زمین", maxLines: 2),
-        ],
-      );
-    }
+            if (!isEditMode) accountCard(),
 
-    if (isShopProperty) {
-      return Column(
-        children: [
-          sectionTitle("مشخصات دکان و مغازه"),
-          textField(meterController, "متراژ دکان", type: TextInputType.number),
-          textField(floorController, "طبقه / موقعیت"),
-          textField(frontageController, "بر جاده / بازار"),
-          textField(waterPowerController, "برق، آب یا امکانات"),
-          textField(documentController, "نوع سند"),
-          textField(facilityController, "امکانات دیگر", maxLines: 2),
-          textField(rentController, "کرایه ماهانه", type: TextInputType.number),
-          textField(
-            depositController,
-            "گروی / پیش‌پرداخت",
-            type: TextInputType.number,
-          ),
-          textField(addressController, "آدرس دقیق دکان", maxLines: 2),
-        ],
-      );
-    }
+            categoryHeader(),
 
-    if (isOfficeProperty) {
-      return Column(
-        children: [
-          sectionTitle("مشخصات دفتر کار"),
-          textField(meterController, "متراژ دفتر", type: TextInputType.number),
-          textField(roomsController, "تعداد اتاق", type: TextInputType.number),
-          textField(
-            bathroomController,
-            "تعداد تشناب",
-            type: TextInputType.number,
-          ),
-          textField(floorController, "طبقه / منزل"),
-          textField(parkingController, "پارکینگ"),
-          textField(waterPowerController, "آب، برق، انترنت"),
-          textField(facilityController, "امکانات دفتر", maxLines: 2),
-          textField(rentController, "کرایه ماهانه", type: TextInputType.number),
-          textField(
-            depositController,
-            "گروی / پیش‌پرداخت",
-            type: TextInputType.number,
-          ),
-          textField(addressController, "آدرس دقیق دفتر", maxLines: 2),
-        ],
-      );
-    }
+            sectionCard(
+              title: "اطلاعات اصلی",
+              icon: Icons.description,
+              children: [
 
-    if (isWarehouseProperty) {
-      return Column(
-        children: [
-          sectionTitle("مشخصات گدام"),
-          textField(meterController, "متراژ گدام", type: TextInputType.number),
-          textField(heightController, "ارتفاع گدام"),
-          textField(frontageController, "دسترسی موتر / سرک"),
-          textField(waterPowerController, "برق، آب یا برق سه‌فاز"),
-          textField(documentController, "نوع سند"),
-          textField(facilityController, "امکانات گدام", maxLines: 2),
-          textField(rentController, "کرایه ماهانه", type: TextInputType.number),
-          textField(
-            depositController,
-            "گروی / پیش‌پرداخت",
-            type: TextInputType.number,
-          ),
-          textField(addressController, "آدرس دقیق گدام", maxLines: 2),
-        ],
-      );
-    }
+                textField(
+                  titleController,
+                  "عنوان آگهی",
+                  required: true,
+                ),
 
-    return Column(
-      children: [
-        sectionTitle("مشخصات خانه یا آپارتمان"),
-        textField(meterController, "متراژ", type: TextInputType.number),
-        textField(roomsController, "تعداد اتاق", type: TextInputType.number),
-        textField(
-          bathroomController,
-          "تعداد تشناب",
-          type: TextInputType.number,
+                textField(
+                  descriptionController,
+                  "توضیحات",
+                  maxLines: 5,
+                ),
+
+                textField(
+                  priceController,
+                  "قیمت",
+                  type: TextInputType.number,
+                ),
+
+                /// شماره تماس دیگر خودکار نیست
+                textField(
+                  phoneController,
+                  "شماره تماس",
+                  type: TextInputType.phone,
+                  required: true,
+                ),
+              ],
+            ),
+
+            sectionCard(
+              title: "مشخصات دسته بندی",
+              icon: Icons.category,
+              children: [
+
+                categorySpecificFields(),
+
+              ],
+            ),
+
+            sectionCard(
+              title: "موقعیت",
+              icon: Icons.location_on,
+              children: [
+
+                locationFields(),
+
+              ],
+            ),
+
+            sectionCard(
+              title: "تصاویر",
+              icon: Icons.photo_library,
+              children: [
+
+                imagePickerSection(),
+
+              ],
+            ),
+
+            const SizedBox(height: 25),
+
+            SizedBox(
+              width: double.infinity,
+              height: 55,
+              child: FilledButton.icon(
+                icon: loading
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.check),
+
+                label: Text(
+                  loading
+                      ? "در حال ثبت..."
+                      : isEditMode
+                          ? "ذخیره تغییرات"
+                          : "ثبت آگهی",
+                ),
+
+                onPressed: loading
+                    ? null
+                    : submitAd,
+              ),
+            ),
+
+            const SizedBox(height: 40),
+          ],
         ),
-        textField(kitchenController, "آشپزخانه"),
-        textField(floorController, "طبقه / منزل / همکف"),
-        textField(parkingController, "پارکینگ"),
-        textField(documentController, "نوع سند"),
-        textField(facilityController, "امکانات", maxLines: 2),
-        if (subCategory == "خانه کرایی" || subCategory == "آپارتمان") ...[
-          textField(rentController, "کرایه ماهانه", type: TextInputType.number),
-          textField(
-            depositController,
-            "گروی / پیش‌پرداخت",
-            type: TextInputType.number,
+      ),
+    ),
+  );
+}
+Widget categoryHeader() {
+  return Container(
+    width: double.infinity,
+    margin: const EdgeInsets.only(bottom: 14),
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(18),
+      border: Border.all(color: primaryColor.withOpacity(0.15)),
+    ),
+    child: InkWell(
+      onTap: loading ? null : backToCategories,
+      child: Row(
+        textDirection: TextDirection.rtl,
+        children: [
+          const Icon(Icons.category, color: primaryColor),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              "$mainCategory / $subCategory",
+              textAlign: TextAlign.right,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
           ),
+          const Icon(Icons.edit, size: 20),
         ],
-        textField(addressController, "آدرس دقیق", maxLines: 2),
+      ),
+    ),
+  );
+}
+
+Widget locationFields() {
+  final districtList = districts[province] ?? ["مرکز هرات"];
+  final hasGps = latitude != null && longitude != null;
+
+  return Column(
+    children: [
+      dropdown<String>(
+        value: province,
+        label: "ولایت",
+        items: provinces,
+        onChanged: (v) {
+          if (v == null) return;
+          setState(() {
+            province = v;
+            district = districts[v]?.first ?? "مرکز هرات";
+          });
+        },
+      ),
+      dropdown<String>(
+        value: district,
+        label: "ولسوالی / ناحیه",
+        items: districtList,
+        onChanged: (v) {
+          if (v == null) return;
+          setState(() {
+            district = v;
+          });
+        },
+      ),
+      textField(
+        addressController,
+        "آدرس دقیق",
+        maxLines: 2,
+        required: true,
+        hint: "مثلاً: ناحیه دوازده، نزدیک مسجد، سرک عمومی",
+      ),
+      Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: hasGps
+              ? Colors.green.withOpacity(0.08)
+              : Colors.deepPurple.withOpacity(0.06),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: hasGps
+                ? Colors.green.withOpacity(0.35)
+                : Colors.deepPurple.withOpacity(0.22),
+          ),
+        ),
+        child: Column(
+          children: [
+            Row(
+              textDirection: TextDirection.rtl,
+              children: [
+                Icon(
+                  hasGps ? Icons.check_circle : Icons.my_location,
+                  color: hasGps ? Colors.green : primaryColor,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    hasGps
+                        ? "موقعیت GPS ثبت شده است"
+                        : "برای فیلتر کیلومتری، موقعیت GPS را ثبت کنید",
+                    textAlign: TextAlign.right,
+                    style: TextStyle(
+                      color: hasGps ? Colors.green.shade700 : primaryColor,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (hasGps) ...[
+              const SizedBox(height: 8),
+              Text(
+                "Lat: ${latitude!.toStringAsFixed(6)}   Lng: ${longitude!.toStringAsFixed(6)}",
+                textDirection: TextDirection.ltr,
+                style: TextStyle(
+                  color: Colors.grey.shade700,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: OutlinedButton.icon(
+                onPressed: locationLoading ? null : detectCurrentLocation,
+                icon: locationLoading
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Icon(hasGps ? Icons.refresh : Icons.gps_fixed),
+                label: Text(
+                  locationLoading
+                      ? "در حال دریافت موقعیت..."
+                      : hasGps
+                          ? "گرفتن دوباره موقعیت"
+                          : "ثبت موقعیت فعلی",
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ],
+  );
+}
+
+Widget imagePickerSection() {
+  final total = existingImageUrls.length + selectedImages.length;
+
+  return Column(
+    children: [
+      SizedBox(
+        width: double.infinity,
+        height: 48,
+        child: OutlinedButton.icon(
+          onPressed: loading ? null : pickImages,
+          icon: const Icon(Icons.add_photo_alternate),
+          label: Text(total == 0 ? "انتخاب عکس" : "افزودن عکس ($total/20)"),
+        ),
+      ),
+      const SizedBox(height: 12),
+      if (total == 0)
+        Text(
+          "اضافه کردن عکس باعث اعتماد بیشتر خریدار می‌شود.",
+          style: TextStyle(color: Colors.grey.shade600),
+        ),
+      if (existingImageUrls.isNotEmpty || selectedImageBytes.isNotEmpty)
+        SizedBox(
+          height: 96,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            reverse: true,
+            children: [
+              ...existingImageUrls.asMap().entries.map((entry) {
+                return imagePreview(
+                  child: Image.network(
+                    entry.value,
+                    fit: BoxFit.cover,
+                    width: 82,
+                    height: 82,
+                  ),
+                  onRemove: () => removeExistingImage(entry.key),
+                );
+              }),
+              ...selectedImageBytes.asMap().entries.map((entry) {
+                return imagePreview(
+                  child: Image.memory(
+                    entry.value,
+                    fit: BoxFit.cover,
+                    width: 82,
+                    height: 82,
+                  ),
+                  onRemove: () => removeNewImage(entry.key),
+                );
+              }),
+            ],
+          ),
+        ),
+    ],
+  );
+}
+
+Widget imagePreview({
+  required Widget child,
+  required VoidCallback onRemove,
+}) {
+  return Container(
+    margin: const EdgeInsets.only(left: 8),
+    child: Stack(
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: child,
+        ),
+        Positioned(
+          top: 2,
+          left: 2,
+          child: InkWell(
+            onTap: onRemove,
+            child: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: const BoxDecoration(
+                color: Colors.black54,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.close,
+                color: Colors.white,
+                size: 16,
+              ),
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+Widget propertyFields() {
+  if (isLandProperty) {
+    return Column(
+      children: [
+        textField(meterController, "متراژ زمین", type: TextInputType.number),
+        textField(landUseController, "نوع استفاده زمین"),
+        textField(documentController, "نوع سند"),
+        textField(directionController, "جهت زمین"),
+        textField(frontageController, "بر جاده / سرک"),
+        textField(waterPowerController, "آب و برق"),
       ],
     );
   }
 
-  Widget vehicleFields() {
-    if (subCategory == "بایسکل") {
-      return Column(
-        children: [
-          sectionTitle("مشخصات بایسکل"),
-          textField(brandController, "برند / نوع بایسکل"),
-          textField(modelController, "مدل / سایز"),
-          textField(colorController, "رنگ"),
-          textField(conditionController, "وضعیت"),
-        ],
-      );
-    }
+  return Column(
+    children: [
+      textField(meterController, "متراژ", type: TextInputType.number),
+      textField(roomsController, "تعداد اتاق", type: TextInputType.number),
+      textField(bathroomController, "تعداد تشناب", type: TextInputType.number),
+      textField(kitchenController, "آشپزخانه"),
+      textField(floorController, "طبقه / منزل"),
+      textField(parkingController, "پارکینگ"),
+      textField(documentController, "نوع سند"),
+      textField(facilityController, "امکانات", maxLines: 2),
+      if (isPropertyForRent) ...[
+        textField(rentController, "کرایه ماهانه", type: TextInputType.number),
+        textField(depositController, "گروی / پیش‌پرداخت", type: TextInputType.number),
+      ],
+    ],
+  );
+}
 
-    if (subCategory == "پرزه موتر" || subCategory == "تایر و پرزه") {
-      return Column(
-        children: [
-          sectionTitle("مشخصات پرزه"),
-          textField(brandController, "نام پرزه / برند"),
-          textField(modelController, "مدل / اندازه"),
-          textField(conditionController, "وضعیت"),
-          textField(colorController, "رنگ"),
-        ],
-      );
-    }
+Widget vehicleFields() {
+  return Column(
+    children: [
+      textField(brandController, "برند یا نوع وسیله"),
+      textField(modelController, "مدل"),
+      textField(yearController, "سال ساخت", type: TextInputType.number),
+      textField(kmController, "کیلومتر کارکرد", type: TextInputType.number),
+      textField(colorController, "رنگ"),
+      textField(fuelController, "نوع تیل"),
+      textField(gearController, "گیربکس"),
+      textField(documentController, "اسناد / نمبر پلیت"),
+    ],
+  );
+}
 
+Widget categorySpecificFields() {
+  if (mainCategory == "املاک") return propertyFields();
+  if (mainCategory == "وسایل نقلیه") return vehicleFields();
+
+  if (mainCategory == "لوازم الکترونیکی") {
     return Column(
       children: [
-        sectionTitle("مشخصات وسیله نقلیه"),
-        textField(brandController, "برند یا نوع وسیله"),
+        textField(brandController, "برند"),
         textField(modelController, "مدل"),
-        textField(yearController, "سال ساخت", type: TextInputType.number),
-        textField(kmController, "کیلومتر کارکرد", type: TextInputType.number),
+        textField(yearController, "سال / نسخه"),
         textField(colorController, "رنگ"),
-        textField(fuelController, "نوع تیل مثل پترول، دیزل، گاز"),
-        textField(gearController, "گیربکس مثل اتومات یا دنده‌ای"),
-        textField(documentController, "اسناد، نمبر پلیت، محصول"),
-      ],
-    );
-  }
-
-  Widget categorySpecificFields() {
-    if (mainCategory == "املاک") {
-      return propertyFields();
-    }
-
-    if (mainCategory == "وسایل نقلیه") {
-      return vehicleFields();
-    }
-
-    if (mainCategory == "لوازم الکترونیکی") {
-      return Column(
-        children: [
-          sectionTitle("مشخصات لوازم الکترونیکی"),
-          textField(brandController, "برند"),
-          textField(modelController, "مدل"),
-          textField(sizeController, "حافظه / اندازه / ظرفیت"),
-          textField(colorController, "رنگ"),
-          textField(conditionController, "وضعیت مثل نو، کارکرده، خراب"),
-        ],
-      );
-    }
-
-    if (mainCategory == "خدمات" || mainCategory == "استخدام و کاریابی") {
-      return Column(
-        children: [
-          sectionTitle("مشخصات کار یا خدمات"),
-          textField(brandController, "عنوان کار یا خدمات"),
-          textField(salaryController, "معاش / قیمت خدمات"),
-          textField(workTimeController, "وقت کاری"),
-          textField(experienceController, "تجربه لازم"),
-          textField(addressController, "آدرس", maxLines: 2),
-        ],
-      );
-    }
-
-    return Column(
-      children: [
-        sectionTitle("مشخصات کالا"),
-        textField(brandController, "برند / نوع"),
-        textField(modelController, "مدل / اندازه"),
-        textField(colorController, "رنگ"),
+        textField(sizeController, "اندازه / ظرفیت"),
+        textField(storageController, "حافظه داخلی"),
+        textField(ramController, "رم"),
+        textField(processorController, "پردازنده"),
+        textField(batteryController, "وضعیت باتری"),
+        textField(screenSizeController, "اندازه صفحه"),
+        textField(warrantyController, "گارانتی"),
+        textField(originalBoxController, "جعبه اصلی"),
+        textField(serialController, "سریال / IMEI"),
+        textField(accessoriesController, "لوازم همراه", maxLines: 2),
+        textField(repairController, "سابقه تعمیر", maxLines: 2),
         textField(conditionController, "وضعیت"),
       ],
     );
   }
 
-  Widget locationFields() {
-    final districtList = districts[province] ?? ["مرکز هرات"];
-
+  if (mainCategory == "خدمات" || mainCategory == "استخدام و کاریابی") {
     return Column(
       children: [
-        sectionTitle("موقعیت"),
-        dropdown<String>(
-          value: province,
-          label: "ولایت",
-          items: provinces,
-          onChanged: (v) {
-            if (v == null) return;
-
-            setState(() {
-              province = v;
-              district = districts[v]?.first ?? "مرکز هرات";
-            });
-          },
-        ),
-        dropdown<String>(
-          value: district,
-          label: "ولسوالی",
-          items: districtList,
-          onChanged: (v) {
-            if (v == null) return;
-
-            setState(() {
-              district = v;
-            });
-          },
-        ),
+        textField(brandController, "عنوان کار یا خدمات"),
+        textField(salaryController, "معاش / قیمت خدمات"),
+        textField(workTimeController, "وقت کاری"),
+        textField(experienceController, "تجربه لازم"),
       ],
     );
   }
 
-  Widget imagePickerSection() {
-    final totalImages = existingImageUrls.length + selectedImages.length;
+  return Column(
+    children: [
+      textField(brandController, "برند / نوع"),
+      textField(modelController, "مدل / اندازه"),
+      textField(colorController, "رنگ"),
+      textField(conditionController, "وضعیت"),
+    ],
+  );
+}
 
-    return Column(
-      children: [
-        sectionTitle("عکس‌های آگهی"),
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: loading ? null : pickImages,
-            icon: const Icon(Icons.image),
-            label: Text(
-              totalImages == 0 ? "انتخاب عکس" : "عکس‌ها ($totalImages/20)",
-            ),
-          ),
-        ),
-        if (existingImageUrls.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 12),
-            child: SizedBox(
-              height: 125,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: existingImageUrls.length,
-                itemBuilder: (context, index) {
-                  return Stack(
-                    children: [
-                      Container(
-                        margin: const EdgeInsets.only(right: 8),
-                        width: 125,
-                        height: 125,
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: Image.network(
-                            existingImageUrls[index],
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                      ),
-                      Positioned(
-                        top: 4,
-                        right: 12,
-                        child: InkWell(
-                          onTap: loading
-                              ? null
-                              : () => removeExistingImage(index),
-                          child: Container(
-                            decoration: const BoxDecoration(
-                              color: Colors.black54,
-                              shape: BoxShape.circle,
-                            ),
-                            padding: const EdgeInsets.all(4),
-                            child: const Icon(
-                              Icons.close,
-                              color: Colors.white,
-                              size: 18,
-                            ),
-                          ),
-                        ),
-                      ),
-                      if (index == 0)
-                        Positioned(
-                          left: 8,
-                          bottom: 8,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.green,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Text(
-                              "عکس اصلی",
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  );
-                },
-              ),
-            ),
-          ),
-        if (selectedImageBytes.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 12),
-            child: SizedBox(
-              height: 125,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: selectedImageBytes.length,
-                itemBuilder: (context, index) {
-                  final mainIndex = existingImageUrls.length + index;
+Widget buildCategoryList() {
+  return Scaffold(
+    backgroundColor: bgColor,
+    appBar: AppBar(
+      title: Text(isEditMode ? "تغییر دسته‌بندی" : "انتخاب دسته‌بندی"),
+      centerTitle: true,
+    ),
+    body: ListView.separated(
+      padding: const EdgeInsets.all(12),
+      itemCount: mainCategories.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 8),
+      itemBuilder: (context, index) {
+        final item = mainCategories[index];
+        final color = item["color"] as Color;
 
-                  return Stack(
-                    children: [
-                      Container(
-                        margin: const EdgeInsets.only(right: 8),
-                        width: 125,
-                        height: 125,
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: Image.memory(
-                            selectedImageBytes[index],
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                      ),
-                      Positioned(
-                        top: 4,
-                        right: 12,
-                        child: InkWell(
-                          onTap: loading ? null : () => removeNewImage(index),
-                          child: Container(
-                            decoration: const BoxDecoration(
-                              color: Colors.black54,
-                              shape: BoxShape.circle,
-                            ),
-                            padding: const EdgeInsets.all(4),
-                            child: const Icon(
-                              Icons.close,
-                              color: Colors.white,
-                              size: 18,
-                            ),
-                          ),
-                        ),
-                      ),
-                      if (mainIndex == 0)
-                        Positioned(
-                          left: 8,
-                          bottom: 8,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.green,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Text(
-                              "عکس اصلی",
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  );
-                },
-              ),
-            ),
+        return Card(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
           ),
-      ],
-    );
-  }
+          child: ListTile(
+            leading: CircleAvatar(
+              backgroundColor: color.withOpacity(0.14),
+              child: Icon(item["icon"] as IconData, color: color),
+            ),
+            title: Text(
+              item["name"].toString(),
+              textAlign: TextAlign.right,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            trailing: const Icon(Icons.chevron_left),
+            onTap: () {
+              showSubCategories(
+                item["name"].toString(),
+                List<String>.from(item["subs"] as List),
+              );
+            },
+          ),
+        );
+      },
+    ),
+  );
+}
 
-  Widget buildFormPage() {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF7F8FA),
-      appBar: AppBar(
-        title: Text(isEditMode ? "ویرایش آگهی" : "ثبت آگهی"),
-        centerTitle: true,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: loading ? null : backToCategories,
-        ),
-      ),
-      body: Directionality(
+void showSubCategories(String main, List<String> subs) {
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: bgColor,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    ),
+    builder: (_) {
+      return Directionality(
         textDirection: TextDirection.rtl,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              if (!isEditMode) accountCard(),
+        child: SafeArea(
+          child: SizedBox(
+            height: MediaQuery.of(context).size.height * 0.75,
+            child: ListView.builder(
+              padding: const EdgeInsets.all(14),
+              itemCount: subs.length + 1,
+              itemBuilder: (context, index) {
+                if (index == 0) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Text(
+                      main,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  );
+                }
 
-              categoryHeader(),
+                final sub = subs[index - 1];
 
-              sectionTitle("اطلاعات اصلی"),
-              textField(titleController, "عنوان آگهی"),
-              textField(
-                descriptionController,
-                "توضیحات عمومی",
-                maxLines: 4,
-              ),
-              textField(
-                priceController,
-                mainCategory == "املاک" && isPropertyForRent
-                    ? "قیمت / کرایه"
-                    : "قیمت",
-                type: TextInputType.number,
-              ),
-              textField(
-                phoneController,
-                "شماره تماس",
-                type: TextInputType.phone,
-              ),
-
-              categorySpecificFields(),
-              locationFields(),
-              imagePickerSection(),
-
-              const SizedBox(height: 30),
-
-              SizedBox(
-                width: double.infinity,
-                height: 55,
-                child: ElevatedButton(
-                  onPressed: loading ? null : submitAd,
-                  child: Text(
-                    loading
-                        ? (isEditMode
-                            ? "در حال ویرایش..."
-                            : "در حال ثبت آگهی...")
-                        : (isEditMode ? "ذخیره تغییرات" : "ثبت آگهی"),
+                return Card(
+                  child: ListTile(
+                    title: Text(sub, textAlign: TextAlign.right),
+                    trailing: const Icon(Icons.chevron_left),
+                    onTap: () {
+                      Navigator.pop(context);
+                      selectCategory(main, sub);
+                    },
                   ),
-                ),
-              ),
-
-              const SizedBox(height: 20),
-            ],
+                );
+              },
+            ),
           ),
         ),
-      ),
-    );
-  }
+      );
+    },
+  );
+}
 
-  @override
-  void dispose() {
-    titleController.dispose();
-    descriptionController.dispose();
-    priceController.dispose();
-    phoneController.dispose();
+@override
+void dispose() {
+  titleController.dispose();
+  descriptionController.dispose();
+  priceController.dispose();
+  phoneController.dispose();
+  addressController.dispose();
 
-    brandController.dispose();
-    modelController.dispose();
-    yearController.dispose();
-    colorController.dispose();
-    sizeController.dispose();
-    conditionController.dispose();
+  brandController.dispose();
+  modelController.dispose();
+  yearController.dispose();
+  colorController.dispose();
+  conditionController.dispose();
+  sizeController.dispose();
 
-    meterController.dispose();
-    roomsController.dispose();
-    floorController.dispose();
-    addressController.dispose();
-    rentController.dispose();
-    depositController.dispose();
+  warrantyController.dispose();
+  originalBoxController.dispose();
+  storageController.dispose();
+  ramController.dispose();
+  processorController.dispose();
+  batteryController.dispose();
+  screenSizeController.dispose();
+  serialController.dispose();
+  accessoriesController.dispose();
+  repairController.dispose();
 
-    propertyTypeController.dispose();
-    documentController.dispose();
-    facilityController.dispose();
-    directionController.dispose();
-    bathroomController.dispose();
-    kitchenController.dispose();
-    parkingController.dispose();
-    waterPowerController.dispose();
-    landUseController.dispose();
-    frontageController.dispose();
-    heightController.dispose();
+  meterController.dispose();
+  roomsController.dispose();
+  floorController.dispose();
+  rentController.dispose();
+  depositController.dispose();
 
-    kmController.dispose();
-    fuelController.dispose();
-    gearController.dispose();
+  propertyTypeController.dispose();
+  documentController.dispose();
+  facilityController.dispose();
+  directionController.dispose();
+  bathroomController.dispose();
+  kitchenController.dispose();
+  parkingController.dispose();
+  waterPowerController.dispose();
+  landUseController.dispose();
+  frontageController.dispose();
+  heightController.dispose();
 
-    salaryController.dispose();
-    workTimeController.dispose();
-    experienceController.dispose();
+  kmController.dispose();
+  fuelController.dispose();
+  gearController.dispose();
 
-    super.dispose();
-  }
+  salaryController.dispose();
+  workTimeController.dispose();
+  experienceController.dispose();
 
-  @override
-  Widget build(BuildContext context) {
-    return Directionality(
-      textDirection: TextDirection.rtl,
-      child: categorySelected ? buildFormPage() : buildCategoryList(),
-    );
-  }
+  super.dispose();
+}
+
+@override
+Widget build(BuildContext context) {
+  return Directionality(
+    textDirection: TextDirection.rtl,
+    child: categorySelected ? buildFormPage() : buildCategoryList(),
+  );
+}
 }

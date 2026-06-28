@@ -20,6 +20,17 @@ class _AccountPageState extends State<AccountPage> {
     if (mounted) setState(() {});
   }
 
+  String accountContactText() {
+    final email = Session.currentUser?["email"]?.toString().trim() ?? "";
+    final phone = Session.userPhone.trim();
+
+    if (email.isNotEmpty) return email;
+    if (phone.startsWith("email_")) return "ایمیل ثبت شده";
+    if (phone.isNotEmpty) return phone;
+
+    return "اطلاعات تماس ثبت نشده";
+  }
+
   Future<void> openLogin() async {
     final result = await Navigator.push(
       context,
@@ -30,6 +41,32 @@ class _AccountPageState extends State<AccountPage> {
   }
 
   Future<void> logout() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) {
+        return Directionality(
+          textDirection: TextDirection.rtl,
+          child: AlertDialog(
+            title: const Text("خروج از حساب"),
+            content: const Text("آیا مطمئن هستید که می‌خواهید خارج شوید؟"),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text("لغو"),
+              ),
+              FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: Colors.red),
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text("خروج"),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (ok != true) return;
+
     await Session.logout();
 
     if (!mounted) return;
@@ -38,7 +75,7 @@ class _AccountPageState extends State<AccountPage> {
       const SnackBar(content: Text("از حساب خارج شدید")),
     );
 
-    Navigator.pop(context, true);
+    setState(() {});
   }
 
   void openPage(Widget page) {
@@ -52,7 +89,7 @@ class _AccountPageState extends State<AccountPage> {
   Widget build(BuildContext context) {
     final logged = Session.isLoggedIn;
     final name = Session.userFullName;
-    final phone = Session.userPhone;
+    final contact = accountContactText();
 
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -98,7 +135,7 @@ class _AccountPageState extends State<AccountPage> {
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          logged ? phone : "برای استفاده کامل وارد شوید",
+                          logged ? contact : "برای استفاده کامل وارد شوید",
                           style: const TextStyle(color: Colors.white70),
                         ),
                       ],
@@ -155,6 +192,14 @@ class _AccountPageState extends State<AccountPage> {
             ),
 
             _AccountTile(
+              icon: Icons.security,
+              color: Colors.red,
+              title: "راهنمای امنیت",
+              subtitle: "جلوگیری از کلاهبرداری و معامله امن",
+              onTap: () => openPage(const SafetyGuidePage()),
+            ),
+
+            _AccountTile(
               icon: Icons.settings,
               color: Colors.grey,
               title: "تنظیمات",
@@ -176,7 +221,6 @@ class _AccountPageState extends State<AccountPage> {
     );
   }
 }
-
 class _AccountTile extends StatelessWidget {
   final IconData icon;
   final Color color;
@@ -216,6 +260,23 @@ class _AccountTile extends StatelessWidget {
 class ProfileSectionPage extends StatelessWidget {
   const ProfileSectionPage({super.key});
 
+  String contactValue() {
+    final email = Session.currentUser?["email"]?.toString().trim() ?? "";
+    final phone = Session.userPhone.trim();
+
+    if (email.isNotEmpty) return email;
+    if (phone.startsWith("email_")) return "ایمیل ثبت شده";
+    if (phone.isNotEmpty) return phone;
+
+    return "";
+  }
+
+  String contactTitle() {
+    final email = Session.currentUser?["email"]?.toString().trim() ?? "";
+    if (email.isNotEmpty) return "ایمیل";
+    return "شماره";
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = Session.currentUser ?? {};
@@ -240,7 +301,7 @@ class ProfileSectionPage extends StatelessWidget {
               title: "نام خانوادگی",
               value: user["last_name"]?.toString() ?? "",
             ),
-            _InfoRow(title: "شماره", value: Session.userPhone),
+            _InfoRow(title: contactTitle(), value: contactValue()),
             _InfoRow(title: "شناسه کاربر", value: Session.userId?.toString() ?? ""),
           ],
         ),
@@ -381,7 +442,6 @@ class _MyAdsSectionPageState extends State<MyAdsSectionPage> {
     );
   }
 }
-
 class SettingsSectionPage extends StatelessWidget {
   const SettingsSectionPage({super.key});
 
@@ -403,6 +463,177 @@ class SettingsSectionPage extends StatelessWidget {
             Text(
               "تنظیمات بیشتر بعداً اضافه می‌شود.",
               textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class SafetyGuidePage extends StatelessWidget {
+  const SafetyGuidePage({super.key});
+
+  Widget section({
+    required IconData icon,
+    required Color color,
+    required String title,
+    required List<String> items,
+  }) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 14),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              textDirection: TextDirection.rtl,
+              children: [
+                CircleAvatar(
+                  backgroundColor: color.withOpacity(0.12),
+                  child: Icon(icon, color: color),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    title,
+                    textAlign: TextAlign.right,
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            ...items.map(
+              (item) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(
+                  "• $item",
+                  textAlign: TextAlign.right,
+                  style: const TextStyle(fontSize: 15, height: 1.6),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text("راهنمای امنیت"),
+          centerTitle: true,
+        ),
+        body: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.10),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: Colors.red.withOpacity(0.35)),
+              ),
+              child: const Text(
+                "⛔ افغانستان بازار هیچ‌وقت از شما کردیت موبایل، رمز کارت، کد تأیید، بیعانه یا پرداخت قبل از دیدن کالا درخواست نمی‌کند.",
+                textAlign: TextAlign.right,
+                style: TextStyle(
+                  color: Colors.red,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                  height: 1.6,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            section(
+              icon: Icons.warning,
+              color: Colors.orange,
+              title: "نشانه‌های کلاهبرداری",
+              items: [
+                "قیمت بسیار پایین‌تر از بازار",
+                "عجله برای گرفتن پول یا تحویل کالا",
+                "درخواست بیعانه قبل از دیدن کالا",
+                "درخواست ارسال کردیت موبایل",
+                "ارسال لینک پرداخت ناشناس",
+                "رسید بانکی یا اسکرین‌شات جعلی",
+                "درخواست رمز کارت، رمز پویا یا کد تأیید",
+                "خودداری از ملاقات حضوری",
+                "انتقال گفتگو به بیرون از برنامه برای پرداخت مشکوک",
+              ],
+            ),
+
+            section(
+              icon: Icons.mobile_friendly,
+              color: Colors.red,
+              title: "کردیت موبایل نفرستید",
+              items: [
+                "برای هیچ‌کس کردیت MTN، Roshan، Etisalat، AWCC یا Salaam نفرستید.",
+                "درخواست کردیت معمولاً نشانه کلاهبرداری است.",
+                "کردیت ارسال‌شده قابل برگشت نیست.",
+                "اگر کسی گفت اول کردیت بفرست تا کالا را نگه دارم، معامله را قطع کنید.",
+              ],
+            ),
+
+            section(
+              icon: Icons.shopping_bag,
+              color: Colors.green,
+              title: "خرید امن",
+              items: [
+                "تا حد امکان حضوری معامله کنید.",
+                "قبل از پرداخت، کالا را کامل بررسی کنید.",
+                "تا وقتی کالا را ندیده‌اید، پول یا بیعانه نفرستید.",
+                "به عکس، ویدیو یا وعده فروشنده به تنهایی اعتماد نکنید.",
+                "در مکان عمومی و امن معامله کنید.",
+              ],
+            ),
+
+            section(
+              icon: Icons.sell,
+              color: Colors.blue,
+              title: "فروش امن",
+              items: [
+                "قبل از اطمینان از دریافت پول، کالا را تحویل ندهید.",
+                "به رسید بانکی یا پیامک جعلی اعتماد نکنید.",
+                "موجودی حساب خود را مستقیم بررسی کنید.",
+                "اگر خریدار عجله یا فشار آورد، معامله را متوقف کنید.",
+              ],
+            ),
+
+            section(
+              icon: Icons.report,
+              color: Colors.deepPurple,
+              title: "اگر مشکوک شدید",
+              items: [
+                "معامله را فوراً متوقف کنید.",
+                "آگهی را گزارش دهید.",
+                "با پشتیبانی تماس بگیرید.",
+                "در صورت ضرر مالی، موضوع را به مراجع قانونی گزارش دهید.",
+              ],
+            ),
+
+            const SizedBox(height: 10),
+
+            const Text(
+              "توجه: افغانستان بازار فقط بستر نشر آگهی و ارتباط کاربران است. مسئولیت بررسی کالا، پرداخت، تحویل، توافقات مالی و هرگونه ضرر یا کلاهبرداری بر عهده خریدار و فروشنده است. افغانستان بازار مسئولیتی در قبال معاملات خارج از برنامه، پرداخت اشتباه، ارسال کردیت، بیعانه، رسید جعلی یا کلاهبرداری کاربران ندارد.",
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                fontSize: 14,
+                height: 1.7,
+                color: Colors.black87,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ],
         ),

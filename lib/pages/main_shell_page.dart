@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../core/api.dart';
 import '../core/session.dart';
@@ -11,7 +12,6 @@ import 'auth_page.dart';
 import 'chat_list_page.dart';
 import 'create_ad_page.dart';
 import 'home_page.dart';
-import 'official_group_page.dart';
 
 class MainShellPage extends StatefulWidget {
   const MainShellPage({super.key});
@@ -120,21 +120,52 @@ class _MainShellPageState extends State<MainShellPage> {
       MaterialPageRoute(builder: (_) => const CreateAdPage()),
     );
 
-    if (result == true) {
-      homeKey.currentState?.refreshAds();
-    }
+    if (!mounted) return;
 
-    if (mounted) {
+    if (result == true) {
       setState(() {
         selectedIndex = 0;
       });
+
+      await Future.delayed(const Duration(milliseconds: 150));
+
+      if (!mounted) return;
+
+      final homeState = homeKey.currentState;
+
+      if (homeState != null) {
+        await homeState.refreshAds();
+      } else {
+        setState(() {});
+      }
+    }
+
+    if (mounted) {
       await loadUnreadMessagesCount();
+    }
+  }
+  Future<void> openSupportTelegram() async {
+    final uri = Uri.parse('https://t.me/heratbazar_app');
+
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('باز کردن پشتیبانی انجام نشد'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 
   Future<void> changeTab(int index) async {
-    if ((index == 1 || index == 3 || index == 4) &&
-        !Session.isLoggedIn) {
+    if (index == 2) {
+      await openCreateAd();
+      return;
+    }
+
+    if ((index == 1 || index == 3 || index == 4) && !Session.isLoggedIn) {
       final logged = await ensureLoggedIn();
       if (!logged) return;
     }
@@ -154,8 +185,6 @@ class _MainShellPageState extends State<MainShellPage> {
         return HomePage(key: homeKey);
       case 1:
         return const FavoritesPage();
-      case 2:
-        return const OfficialGroupPage();
       case 3:
         return const ChatListPage();
       case 4:
@@ -168,14 +197,19 @@ class _MainShellPageState extends State<MainShellPage> {
   Widget badgeIcon({
     required IconData icon,
     required int count,
+    required bool selected,
   }) {
     return Stack(
       clipBehavior: Clip.none,
       children: [
-        Icon(icon),
+        Icon(
+          icon,
+          color: selected ? primaryColor : Colors.grey.shade600,
+          size: selected ? 27 : 24,
+        ),
         if (count > 0)
           Positioned(
-            top: -7,
+            top: -8,
             left: -10,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
@@ -184,10 +218,7 @@ class _MainShellPageState extends State<MainShellPage> {
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(color: Colors.white, width: 1.5),
               ),
-              constraints: const BoxConstraints(
-                minWidth: 18,
-                minHeight: 18,
-              ),
+              constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
               child: Text(
                 count > 99 ? '99+' : count.toString(),
                 textAlign: TextAlign.center,
@@ -202,132 +233,207 @@ class _MainShellPageState extends State<MainShellPage> {
       ],
     );
   }
-  Widget buildCreateAdButton() {
-    return FloatingActionButton.extended(
-      onPressed: openCreateAd,
-      backgroundColor: primaryColor,
-      foregroundColor: Colors.white,
-      elevation: 4,
-      icon: const Icon(Icons.add),
-      label: const Text(
-        'ثبت آگهی',
-        style: TextStyle(fontWeight: FontWeight.bold),
+
+  Widget buildSupportButton() {
+    return Material(
+      color: Colors.transparent,
+      shape: const CircleBorder(),
+      child: InkWell(
+        onTap: openSupportTelegram,
+        customBorder: const CircleBorder(),
+        child: Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.12),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: const Icon(
+            Icons.support_agent,
+            color: primaryColor,
+            size: 24,
+          ),
+        ),
       ),
     );
   }
 
-  Widget buildGroupIcon({required bool selected}) {
-    return Container(
-      padding: const EdgeInsets.all(7),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [primaryColor, secondColor],
-        ),
+  Widget navItem({
+    required int index,
+    required IconData icon,
+    required IconData activeIcon,
+    required String label,
+    Widget? customIcon,
+  }) {
+    final selected = selectedIndex == index;
+
+    return Expanded(
+      child: InkWell(
         borderRadius: BorderRadius.circular(18),
-        boxShadow: selected
-            ? [
-                BoxShadow(
-                  color: primaryColor.withOpacity(0.25),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
+        onTap: () => changeTab(index),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          margin: const EdgeInsets.symmetric(horizontal: 3, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+          decoration: BoxDecoration(
+            color: selected
+                ? primaryColor.withOpacity(0.10)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              customIcon ??
+                  Icon(
+                    selected ? activeIcon : icon,
+                    color: selected ? primaryColor : Colors.grey.shade600,
+                    size: selected ? 27 : 24,
+                  ),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: selected ? FontWeight.bold : FontWeight.w600,
+                  color: selected ? primaryColor : Colors.grey.shade700,
                 ),
-              ]
-            : [],
+              ),
+            ],
+          ),
+        ),
       ),
-      child: const Icon(
-        Icons.groups,
-        color: Colors.white,
-        size: 24,
+    );
+  }
+
+  Widget createAdCenterButton() {
+    return Expanded(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(24),
+        onTap: () => changeTab(2),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [primaryColor, secondColor],
+                  begin: Alignment.topRight,
+                  end: Alignment.bottomLeft,
+                ),
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: primaryColor.withOpacity(0.35),
+                    blurRadius: 14,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: const Icon(Icons.add, color: Colors.white, size: 31),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'ثبت آگهی',
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.bold,
+                color: primaryColor,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget buildBottomBar() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.96),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: primaryColor.withOpacity(0.08)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.10),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          textDirection: TextDirection.rtl,
+          children: [
+            navItem(
+              index: 0,
+              icon: Icons.search,
+              activeIcon: Icons.search,
+              label: 'جستجو',
+            ),
+            navItem(
+              index: 1,
+              icon: Icons.favorite_border,
+              activeIcon: Icons.favorite,
+              label: 'علاقه‌مندی‌ها',
+            ),
+            createAdCenterButton(),
+            navItem(
+              index: 3,
+              icon: Icons.chat_bubble_outline,
+              activeIcon: Icons.chat_bubble,
+              label: 'پیام‌ها',
+              customIcon: badgeIcon(
+                icon: selectedIndex == 3
+                    ? Icons.chat_bubble
+                    : Icons.chat_bubble_outline,
+                count: unreadMessagesCount,
+                selected: selectedIndex == 3,
+              ),
+            ),
+            navItem(
+              index: 4,
+              icon: Icons.person_outline,
+              activeIcon: Icons.person,
+              label: 'حساب من',
+            ),
+          ],
+        ),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final showCreateButton = selectedIndex == 0;
-
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
         backgroundColor: bgColor,
-        body: currentPage(),
-        floatingActionButton: showCreateButton ? buildCreateAdButton() : null,
-        floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
-        bottomNavigationBar: Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: const BorderRadius.vertical(
-              top: Radius.circular(22),
+        body: Stack(
+          children: [
+            currentPage(),
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 14,
+              left: 16,
+              child: buildSupportButton(),
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.08),
-                blurRadius: 18,
-                offset: const Offset(0, -4),
-              ),
-            ],
-          ),
-          child: NavigationBarTheme(
-            data: NavigationBarThemeData(
-              backgroundColor: Colors.white,
-              indicatorColor: primaryColor.withOpacity(0.12),
-              labelTextStyle: MaterialStateProperty.resolveWith((states) {
-                final selected = states.contains(MaterialState.selected);
-                return TextStyle(
-                  fontSize: 12,
-                  fontWeight: selected ? FontWeight.bold : FontWeight.w500,
-                  color: selected ? primaryColor : Colors.grey.shade700,
-                );
-              }),
-              iconTheme: MaterialStateProperty.resolveWith((states) {
-                final selected = states.contains(MaterialState.selected);
-                return IconThemeData(
-                  color: selected ? primaryColor : Colors.grey.shade600,
-                  size: selected ? 28 : 25,
-                );
-              }),
-            ),
-            child: NavigationBar(
-              height: 74,
-              elevation: 0,
-              selectedIndex: selectedIndex,
-              onDestinationSelected: changeTab,
-              destinations: [
-                const NavigationDestination(
-                  icon: Icon(Icons.search),
-                  selectedIcon: Icon(Icons.search),
-                  label: 'جستجو',
-                ),
-                const NavigationDestination(
-                  icon: Icon(Icons.favorite_border),
-                  selectedIcon: Icon(Icons.favorite),
-                  label: 'علاقه‌مندی‌ها',
-                ),
-                NavigationDestination(
-                  icon: buildGroupIcon(selected: false),
-                  selectedIcon: buildGroupIcon(selected: true),
-                  label: 'گروه',
-                ),
-                NavigationDestination(
-                  icon: badgeIcon(
-                    icon: Icons.chat_bubble_outline,
-                    count: unreadMessagesCount,
-                  ),
-                  selectedIcon: badgeIcon(
-                    icon: Icons.chat_bubble,
-                    count: unreadMessagesCount,
-                  ),
-                  label: 'پیام‌ها',
-                ),
-                const NavigationDestination(
-                  icon: Icon(Icons.person_outline),
-                  selectedIcon: Icon(Icons.person),
-                  label: 'حساب من',
-                ),
-              ],
-            ),
-          ),
+          ],
         ),
+        bottomNavigationBar: buildBottomBar(),
       ),
     );
   }
@@ -375,7 +481,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
 
   String priceText(String price) {
     if (price.isEmpty || price == '0') return 'قیمت توافقی';
-    return 'AFN $price';
+    return '$price افغانی';
   }
 
   List<String> getImages(dynamic ad) {
@@ -401,9 +507,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
   Future<void> openAd(dynamic ad) async {
     await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => AdDetailPage(ad: Map.from(ad)),
-      ),
+      MaterialPageRoute(builder: (_) => AdDetailPage(ad: Map.from(ad))),
     );
 
     if (mounted) refresh();
@@ -606,7 +710,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
             color: primaryColor,
             onRefresh: refresh,
             child: ListView.builder(
-              padding: const EdgeInsets.only(bottom: 18),
+              padding: const EdgeInsets.only(bottom: 102),
               itemCount: ads.length,
               itemBuilder: (context, index) {
                 return buildFavoriteCard(ads[index]);

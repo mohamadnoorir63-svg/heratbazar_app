@@ -308,15 +308,18 @@ class _AdDetailPageState extends State<AdDetailPage> {
     );
   }
 
-  Future<bool> isOwner() async {
-    final adOwnerToken = getText("owner_token");
-    if (adOwnerToken.isEmpty) return false;
+ Future<bool> isOwner() async {
+  if (!Session.isLoggedIn) return false;
 
-    final myOwnerToken = await Session.getOwnerToken();
-    if (myOwnerToken.isEmpty) return false;
+  final adUserId = int.tryParse(getText("user_id"));
+  final myUserId = Session.userId;
 
-    return adOwnerToken == myOwnerToken;
+  if (adUserId != null && adUserId > 0 && myUserId != null) {
+    return adUserId == myUserId;
   }
+
+  return false;
+}
 
   Future<void> callSeller(String phone) async {
     final cleanPhone = phone.trim();
@@ -553,31 +556,24 @@ class _AdDetailPageState extends State<AdDetailPage> {
               onPressed: toggleFavorite,
             ),
           ),
-          const SizedBox(width: 8),
-          FutureBuilder<bool>(
-            future: isOwner(),
-            builder: (context, snapshot) {
-              if (snapshot.data != true) {
-                return const SizedBox.shrink();
-              }
-
-              return CircleAvatar(
-                backgroundColor: Colors.black54,
-                child: actionLoading
-                    ? const Padding(
-                        padding: EdgeInsets.all(10),
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : IconButton(
-                        icon: const Icon(Icons.more_vert, color: Colors.white),
-                        onPressed: showOwnerMenu,
-                      ),
-              );
-            },
+        if (getText("user_id") == Session.userId?.toString()) ...[
+  const SizedBox(width: 8),
+  CircleAvatar(
+    backgroundColor: Colors.black54,
+    child: actionLoading
+        ? const Padding(
+            padding: EdgeInsets.all(10),
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: Colors.white,
+            ),
+          )
+        : IconButton(
+            icon: const Icon(Icons.more_vert, color: Colors.white),
+            onPressed: showOwnerMenu,
           ),
+  ),
+],
         ],
       ),
     );

@@ -327,11 +327,12 @@ class _ChatPageState extends State<ChatPage> {
                 textDirection: TextDirection.rtl,
               ),
             ),
-            if (!canChat)
-              buildEmptyState()
-            else
-              buildMessages(),
-            buildInputBar(),
+           if (!canChat) ...[
+  buildEmptyState(),
+] else ...[
+  buildMessages(),
+  buildInputBar(),
+],
           ],
         ),
       ),

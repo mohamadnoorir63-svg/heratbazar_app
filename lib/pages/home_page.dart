@@ -21,13 +21,14 @@ class HomePageState extends State<HomePage> {
   final TextEditingController maxAreaController = TextEditingController();
 
   String searchText = '';
-  String selectedMainCategory = 'همه';
-  String selectedCondition = 'همه';
-  String selectedDistance = 'همه';
-  String selectedProvince = 'همه';
+String selectedMainCategory = 'همه';
+String selectedCondition = 'همه';
+String selectedDistance = 'همه';
+double selectedRadiusKm = 0; // <-- اینجا
+String selectedProvince = 'همه';
 
-  Position? myPosition;
-  bool locationLoading = false;
+Position? myPosition;
+bool locationLoading = false;
 
   late Future<List<dynamic>> adsFuture;
 
@@ -293,13 +294,8 @@ class HomePageState extends State<HomePage> {
   }
 
   int selectedDistanceKm() {
-    if (selectedDistance == '۱ کیلومتر') return 1;
-    if (selectedDistance == '۵ کیلومتر') return 5;
-    if (selectedDistance == '۱۰ کیلومتر') return 10;
-    if (selectedDistance == '۲۰ کیلومتر') return 20;
-    if (selectedDistance == '۵۰ کیلومتر') return 50;
-    return 0;
-  }
+  return selectedRadiusKm.round();
+}
   String getCondition(dynamic ad) {
     final direct = textOf(ad, 'condition');
     if (direct.isNotEmpty) return direct;
@@ -503,26 +499,28 @@ class HomePageState extends State<HomePage> {
   }
 
   bool get hasFilter {
-    return selectedCondition != 'همه' ||
-        selectedDistance != 'همه' ||
-        selectedProvince != 'همه' ||
-        minPriceController.text.isNotEmpty ||
-        maxPriceController.text.isNotEmpty ||
-        minAreaController.text.isNotEmpty ||
-        maxAreaController.text.isNotEmpty;
-  }
+  return selectedCondition != 'همه' ||
+      selectedRadiusKm > 0 ||
+      selectedProvince != 'همه' ||
+      minPriceController.text.isNotEmpty ||
+      maxPriceController.text.isNotEmpty ||
+      minAreaController.text.isNotEmpty ||
+      maxAreaController.text.isNotEmpty;
+}
 
-  void clearFilters() {
-    setState(() {
-      selectedCondition = 'همه';
-      selectedDistance = 'همه';
-      selectedProvince = 'همه';
-      minPriceController.clear();
-      maxPriceController.clear();
-      minAreaController.clear();
-      maxAreaController.clear();
-    });
-  }
+ void clearFilters() {
+  setState(() {
+    selectedCondition = 'همه';
+    selectedDistance = 'همه';
+    selectedRadiusKm = 0;
+    selectedProvince = 'همه';
+
+    minPriceController.clear();
+    maxPriceController.clear();
+    minAreaController.clear();
+    maxAreaController.clear();
+  });
+}
 
   InputDecoration filterInputDecoration(String label, IconData icon) {
     return InputDecoration(
@@ -659,112 +657,77 @@ class HomePageState extends State<HomePage> {
     );
   }
 
-  void showDistanceSheet() {
-  final items = [
-    'همه',
-    '۱ کیلومتر',
-    '۵ کیلومتر',
-    '۱۰ کیلومتر',
-    '۲۰ کیلومتر',
-    '۵۰ کیلومتر',
-  ];
+ void showDistanceSheet() {
+  double tempRadius = selectedRadiusKm;
 
   showModalBottomSheet(
     context: context,
     backgroundColor: Colors.transparent,
     builder: (_) {
-      return Directionality(
-        textDirection: TextDirection.rtl,
-        child: Container(
-          padding: const EdgeInsets.all(18),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(
-              top: Radius.circular(32),
-            ),
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 52,
-                  height: 5,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                ),
-                const SizedBox(height: 18),
-                const Text(
-                  'انتخاب فاصله واقعی',
-                  style: TextStyle(
-                    fontSize: 21,
-                    fontWeight: FontWeight.w900,
-                    color: textColor,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  locationLoading
-                      ? 'در حال دریافت لوکیشن...'
-                      : 'بر اساس موقعیت فعلی شما',
-                  style: TextStyle(
-                    color: Colors.grey.shade600,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                ...items.map((item) {
-                  final selected = selectedDistance == item;
+      return StatefulBuilder(
+        builder: (context, setSheetState) {
+          final isAll = tempRadius == 0;
 
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    decoration: BoxDecoration(
-                      color: selected
-                          ? primaryColor.withOpacity(0.10)
-                          : const Color(0xffFAF9FF),
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(
-                        color: selected
-                            ? primaryColor
-                            : const Color(0xffEAE5FF),
-                      ),
+          return Directionality(
+            textDirection: TextDirection.rtl,
+            child: Container(
+              padding: const EdgeInsets.all(18),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'فیلتر فاصله',
+                    style: TextStyle(fontSize: 21, fontWeight: FontWeight.w900),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    isAll ? 'همه فاصله‌ها' : 'تا ${tempRadius.round()} کیلومتر',
+                    style: const TextStyle(
+                      color: primaryColor,
+                      fontWeight: FontWeight.bold,
                     ),
-                    child: ListTile(
-                      onTap: () async {
-                        if (item != 'همه') {
+                  ),
+                  Slider(
+                    value: tempRadius,
+                    min: 0,
+                    max: 300,
+                    divisions: 300,
+                    label: isAll ? 'همه' : '${tempRadius.round()} کیلومتر',
+                    onChanged: (value) {
+                      setSheetState(() => tempRadius = value);
+                    },
+                  ),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      icon: const Icon(Icons.check),
+                      label: const Text('اعمال فاصله'),
+                      onPressed: () async {
+                        if (tempRadius > 0) {
                           final ok = await loadMyLocation(showErrors: true);
                           if (!ok) return;
                         }
 
                         setState(() {
-                          selectedDistance = item;
+                          selectedRadiusKm = tempRadius;
+                          selectedDistance = tempRadius == 0
+                              ? 'همه'
+                              : '${tempRadius.round()} کیلومتر';
                         });
 
                         if (mounted) Navigator.pop(context);
                       },
-                      title: Text(
-                        item == 'همه' ? 'همه فاصله‌ها' : item,
-                        style: TextStyle(
-                          fontWeight:
-                              selected ? FontWeight.w900 : FontWeight.bold,
-                          color: selected ? primaryColor : textColor,
-                        ),
-                      ),
-                      trailing: selected
-                          ? const Icon(Icons.check_circle, color: primaryColor)
-                          : Icon(
-                              Icons.radio_button_unchecked,
-                              color: Colors.grey.shade400,
-                            ),
                     ),
-                  );
-                }),
-              ],
+                  ),
+                ],
+              ),
             ),
-          ),
-        ),
+          );
+        },
       );
     },
   );

@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../core/api.dart';
 import '../core/session.dart';
+import '../core/lang.dart';
 
 import 'account_page.dart';
 import 'ad_detail_page.dart';
@@ -70,17 +71,19 @@ class _MainShellPageState extends State<MainShellPage> {
       });
 
       if (showAlert && count > oldCount && selectedIndex != 3) {
+        final diff = count - oldCount;
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             behavior: SnackBarBehavior.floating,
             backgroundColor: primaryColor,
             content: Text(
-              count - oldCount == 1
-                  ? 'یک پیام جدید دریافت کردید'
-                  : '${count - oldCount} پیام جدید دریافت کردید',
+              diff == 1
+                  ? T.tr('new_message_one')
+                  : '$diff ${T.tr('new_messages')}',
             ),
             action: SnackBarAction(
-              label: 'دیدن',
+              label: T.tr('view'),
               textColor: Colors.white,
               onPressed: () {
                 changeTab(3);
@@ -144,6 +147,7 @@ class _MainShellPageState extends State<MainShellPage> {
       await loadUnreadMessagesCount();
     }
   }
+
   Future<void> openSupportTelegram() async {
     final uri = Uri.parse('https://t.me/heratbazar_app');
 
@@ -151,8 +155,8 @@ class _MainShellPageState extends State<MainShellPage> {
 
     if (!ok && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('باز کردن پشتیبانی انجام نشد'),
+        SnackBar(
+          content: Text(T.tr('support_open_failed')),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -344,9 +348,9 @@ class _MainShellPageState extends State<MainShellPage> {
               child: const Icon(Icons.add, color: Colors.white, size: 31),
             ),
             const SizedBox(height: 4),
-            const Text(
-              'ثبت آگهی',
-              style: TextStyle(
+            Text(
+              T.tr('post_ad'),
+              style: const TextStyle(
                 fontSize: 11.5,
                 fontWeight: FontWeight.bold,
                 color: primaryColor,
@@ -381,22 +385,22 @@ class _MainShellPageState extends State<MainShellPage> {
           children: [
             navItem(
               index: 0,
-              icon: Icons.search,
-              activeIcon: Icons.search,
-              label: 'جستجو',
+              icon: Icons.home_outlined,
+              activeIcon: Icons.home,
+              label: T.tr('home'),
             ),
             navItem(
               index: 1,
               icon: Icons.favorite_border,
               activeIcon: Icons.favorite,
-              label: 'علاقه‌مندی‌ها',
+              label: T.tr('favorites'),
             ),
             createAdCenterButton(),
             navItem(
               index: 3,
               icon: Icons.chat_bubble_outline,
               activeIcon: Icons.chat_bubble,
-              label: 'پیام‌ها',
+              label: T.tr('messages'),
               customIcon: badgeIcon(
                 icon: selectedIndex == 3
                     ? Icons.chat_bubble
@@ -409,7 +413,7 @@ class _MainShellPageState extends State<MainShellPage> {
               index: 4,
               icon: Icons.person_outline,
               activeIcon: Icons.person,
-              label: 'حساب من',
+              label: T.tr('account'),
             ),
           ],
         ),
@@ -480,8 +484,8 @@ class _FavoritesPageState extends State<FavoritesPage> {
   }
 
   String priceText(String price) {
-    if (price.isEmpty || price == '0') return 'قیمت توافقی';
-    return '$price افغانی';
+    if (price.isEmpty || price == '0') return T.tr('negotiable_price');
+    return '$price ${T.tr('afghani')}';
   }
 
   List<String> getImages(dynamic ad) {
@@ -522,8 +526,8 @@ class _FavoritesPageState extends State<FavoritesPage> {
     if (!mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('از علاقه‌مندی‌ها حذف شد'),
+      SnackBar(
+        content: Text(T.tr('removed_from_favorites')),
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -585,13 +589,13 @@ class _FavoritesPageState extends State<FavoritesPage> {
               ),
             ),
             const SizedBox(height: 18),
-            const Text(
-              'هنوز علاقه‌مندی ندارید',
-              style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold),
+            Text(
+              T.tr('no_favorites_yet'),
+              style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             Text(
-              'آگهی‌هایی که دوست دارید اینجا ذخیره می‌شوند.',
+              T.tr('favorites_empty_desc'),
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.grey.shade600),
             ),
@@ -632,7 +636,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        title.isEmpty ? 'بدون عنوان' : title,
+                        title.isEmpty ? T.tr('no_title') : title,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         textAlign: TextAlign.right,
@@ -652,7 +656,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        location.isEmpty ? 'موقعیت نامشخص' : location,
+                        location.isEmpty ? T.tr('unknown_location') : location,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         textAlign: TextAlign.right,
@@ -678,7 +682,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
     return Scaffold(
       backgroundColor: bgColor,
       appBar: AppBar(
-        title: const Text('علاقه‌مندی‌ها'),
+        title: Text(T.tr('favorites')),
         centerTitle: true,
         elevation: 0,
         backgroundColor: bgColor,
@@ -696,7 +700,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
           if (snapshot.hasError) {
             return Center(
               child: Text(
-                'خطا در دریافت علاقه‌مندی‌ها\n${snapshot.error}',
+                '${T.tr('favorites_load_error')}\n${snapshot.error}',
                 textAlign: TextAlign.center,
               ),
             );

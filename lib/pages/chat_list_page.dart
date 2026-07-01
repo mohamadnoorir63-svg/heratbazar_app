@@ -14,6 +14,8 @@ class ChatListPage extends StatefulWidget {
 class _ChatListPageState extends State<ChatListPage> {
   late Future<List<dynamic>> future;
 
+  String get myContact => Session.userContact.trim();
+
   @override
   void initState() {
     super.initState();
@@ -21,16 +23,15 @@ class _ChatListPageState extends State<ChatListPage> {
   }
 
   Future<List<dynamic>> load() async {
-    if (!Session.isLoggedIn || Session.userPhone.trim().isEmpty) {
+    if (!Session.isLoggedIn || myContact.isEmpty) {
       return [];
     }
 
-    return Api.getConversations(myPhone: Session.userPhone);
+    return Api.getConversations(myPhone: myContact);
   }
 
   Future<void> refresh() async {
     if (!mounted) return;
-
     setState(() {
       future = load();
     });
@@ -46,29 +47,38 @@ class _ChatListPageState extends State<ChatListPage> {
   }
 
   Map<String, dynamic> adFromConversation(dynamic item) {
+    final otherContact = textOf(item, 'other_phone');
+
     return {
       'id': textOf(item, 'ad_id'),
       'title': textOf(item, 'ad_title'),
       'image_url': textOf(item, 'image_url'),
-      'phone': textOf(item, 'other_phone'),
-      'owner_phone': textOf(item, 'other_phone'),
+      'phone': otherContact,
+      'owner_phone': otherContact,
     };
   }
 
   Future<void> openChat(dynamic item) async {
+    final otherContact = textOf(item, 'other_phone');
+
+    if (otherContact.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('اطلاعات طرف مقابل این گفتگو ناقص است')),
+      );
+      return;
+    }
+
     await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => ChatPage(
           ad: adFromConversation(item),
-          myPhone: Session.userPhone,
+          myPhone: myContact,
         ),
       ),
     );
 
-    if (mounted) {
-      refresh();
-    }
+    if (mounted) refresh();
   }
 
   String cleanError(Object error) {

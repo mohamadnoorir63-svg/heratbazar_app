@@ -27,9 +27,13 @@ class _ChatPageState extends State<ChatPage> {
   bool sending = false;
 
   int get adId =>
-      int.tryParse(widget.ad['id']?.toString() ?? '0') ?? 0;
+      int.tryParse(widget.ad['id']?.toString() ??
+          widget.ad['ad_id']?.toString() ??
+          '0') ??
+      0;
 
   String get sellerPhone =>
+      widget.ad['other_phone']?.toString().trim() ??
       widget.ad['phone']?.toString().trim() ??
       widget.ad['contact_phone']?.toString().trim() ??
       widget.ad['seller_phone']?.toString().trim() ??
@@ -175,13 +179,31 @@ class _ChatPageState extends State<ChatPage> {
     return msg['sender_phone']?.toString() ?? '';
   }
 
+  String messageTime(dynamic msg) {
+    if (msg is! Map) return '';
+
+    final time = msg['message_time'] ??
+        msg['created_at'] ??
+        msg['last_time_text'] ??
+        msg['last_time'];
+
+    if (time == null) return '';
+
+    final raw = time.toString();
+    if (raw.length >= 16) {
+      return raw.substring(0, 16).replaceAll('T', ' ');
+    }
+
+    return raw;
+  }
+
   Widget buildMessage(dynamic msg) {
     final isMe = sender(msg).trim() == myPhone;
     final text = messageText(msg);
+    final time = messageTime(msg);
 
     return Align(
-      alignment:
-          isMe ? Alignment.centerRight : Alignment.centerLeft,
+      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 4),
         padding: const EdgeInsets.all(12),
@@ -189,13 +211,30 @@ class _ChatPageState extends State<ChatPage> {
           maxWidth: MediaQuery.of(context).size.width * .75,
         ),
         decoration: BoxDecoration(
-          color:
-              isMe ? Colors.blue.shade100 : Colors.grey.shade300,
+          color: isMe ? Colors.blue.shade100 : Colors.grey.shade300,
           borderRadius: BorderRadius.circular(14),
         ),
-        child: Text(
-          text,
-          textDirection: TextDirection.rtl,
+        child: Column(
+          crossAxisAlignment:
+              isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              text,
+              textDirection: TextDirection.rtl,
+            ),
+            if (time.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                time,
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: Colors.black54,
+                ),
+                textDirection: TextDirection.ltr,
+              ),
+            ],
+          ],
         ),
       ),
     );
@@ -208,8 +247,10 @@ class _ChatPageState extends State<ChatPage> {
       text = 'ابتدا وارد حساب خود شوید';
     } else if (isOwnAd) {
       text = 'این آگهی متعلق به شماست';
+    } else if (adId <= 0) {
+      text = 'شناسه آگهی موجود نیست';
     } else if (otherPhone.isEmpty) {
-      text = 'شماره فروشنده موجود نیست';
+      text = 'اطلاعات طرف مقابل موجود نیست';
     }
 
     return Expanded(
@@ -265,8 +306,7 @@ class _ChatPageState extends State<ChatPage> {
         child: Row(
           children: [
             IconButton(
-              onPressed:
-                  sending || !canChat ? null : sendMessage,
+              onPressed: sending || !canChat ? null : sendMessage,
               icon: sending
                   ? const SizedBox(
                       width: 22,
@@ -297,8 +337,9 @@ class _ChatPageState extends State<ChatPage> {
 
   @override
   Widget build(BuildContext context) {
-    final title =
-        widget.ad['title']?.toString() ?? 'چت';
+    final title = widget.ad['title']?.toString() ??
+        widget.ad['ad_title']?.toString() ??
+        'چت';
 
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -327,12 +368,12 @@ class _ChatPageState extends State<ChatPage> {
                 textDirection: TextDirection.rtl,
               ),
             ),
-           if (!canChat) ...[
-  buildEmptyState(),
-] else ...[
-  buildMessages(),
-  buildInputBar(),
-],
+            if (!canChat) ...[
+              buildEmptyState(),
+            ] else ...[
+              buildMessages(),
+              buildInputBar(),
+            ],
           ],
         ),
       ),

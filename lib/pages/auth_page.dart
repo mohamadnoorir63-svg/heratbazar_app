@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../core/api.dart';
 import '../core/session.dart';
+import '../core/lang.dart';
 
 class AuthPage extends StatelessWidget {
   const AuthPage({super.key});
@@ -27,7 +28,6 @@ class _LoginPageState extends State<LoginPage> {
 
   final phoneController = TextEditingController();
   final codeController = TextEditingController();
-
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
 
@@ -35,9 +35,13 @@ class _LoginPageState extends State<LoginPage> {
   bool hideCode = true;
   bool hidePassword = true;
 
+  String tr(String key) => T.tr(key);
+
   void showMessage(String text) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(text, textDirection: TextDirection.rtl)),
+    );
   }
 
   Future<void> loginPhone() async {
@@ -47,7 +51,7 @@ class _LoginPageState extends State<LoginPage> {
     final code = codeController.text.trim();
 
     if (phone.isEmpty || code.isEmpty) {
-      showMessage("شماره و کد ورود را وارد کنید");
+      showMessage(tr('enter_phone_code'));
       return;
     }
 
@@ -55,12 +59,11 @@ class _LoginPageState extends State<LoginPage> {
 
     try {
       await Api.login(phone: phone, loginCode: code);
-
       if (!mounted) return;
-      showMessage("ورود موفق شد");
+      showMessage(tr('login_success'));
       Navigator.pop(context, true);
     } catch (e) {
-      showMessage(e.toString().replaceAll("Exception:", "").trim());
+      showMessage(e.toString().replaceAll('Exception:', '').trim());
     }
 
     if (mounted) setState(() => loading = false);
@@ -73,7 +76,7 @@ class _LoginPageState extends State<LoginPage> {
     final password = passwordController.text;
 
     if (email.isEmpty || password.isEmpty) {
-      showMessage("ایمیل و رمز عبور را وارد کنید");
+      showMessage(tr('enter_email_password'));
       return;
     }
 
@@ -81,12 +84,11 @@ class _LoginPageState extends State<LoginPage> {
 
     try {
       await Api.loginEmail(email: email, password: password);
-
       if (!mounted) return;
-      showMessage("ورود ایمیلی موفق شد");
+      showMessage(tr('email_login_success'));
       Navigator.pop(context, true);
     } catch (e) {
-      showMessage(e.toString().replaceAll("Exception:", "").trim());
+      showMessage(e.toString().replaceAll('Exception:', '').trim());
     }
 
     if (mounted) setState(() => loading = false);
@@ -168,10 +170,12 @@ class _LoginPageState extends State<LoginPage> {
         TextField(
           controller: phoneController,
           keyboardType: TextInputType.phone,
-          decoration: const InputDecoration(
-            labelText: "شماره تلفن",
-            hintText: "مثلاً 0700000000",
-            border: OutlineInputBorder(),
+          textDirection: TextDirection.rtl,
+          textAlign: TextAlign.right,
+          decoration: InputDecoration(
+            labelText: tr('phone_number'),
+            hintText: tr('phone_example'),
+            border: const OutlineInputBorder(),
           ),
         ),
         const SizedBox(height: 12),
@@ -179,12 +183,14 @@ class _LoginPageState extends State<LoginPage> {
           controller: codeController,
           keyboardType: TextInputType.number,
           obscureText: hideCode,
+          textDirection: TextDirection.rtl,
+          textAlign: TextAlign.right,
           inputFormatters: [
             FilteringTextInputFormatter.digitsOnly,
             LengthLimitingTextInputFormatter(6),
           ],
           decoration: InputDecoration(
-            labelText: "کد ۶ رقمی ورود",
+            labelText: tr('six_digit_login_code'),
             border: const OutlineInputBorder(),
             suffixIcon: IconButton(
               icon: Icon(hideCode ? Icons.visibility : Icons.visibility_off),
@@ -195,7 +201,7 @@ class _LoginPageState extends State<LoginPage> {
         const SizedBox(height: 12),
         TextButton(
           onPressed: loading ? null : openForgotCode,
-          child: const Text("کد را فراموش کرده‌ام"),
+          child: Text(tr('code_forgot')),
         ),
       ],
     );
@@ -207,18 +213,22 @@ class _LoginPageState extends State<LoginPage> {
         TextField(
           controller: emailController,
           keyboardType: TextInputType.emailAddress,
-          decoration: const InputDecoration(
-            labelText: "ایمیل",
-            hintText: "example@gmail.com",
-            border: OutlineInputBorder(),
+          textDirection: TextDirection.ltr,
+          textAlign: TextAlign.left,
+          decoration: InputDecoration(
+            labelText: tr('email'),
+            hintText: 'example@gmail.com',
+            border: const OutlineInputBorder(),
           ),
         ),
         const SizedBox(height: 12),
         TextField(
           controller: passwordController,
           obscureText: hidePassword,
+          textDirection: TextDirection.rtl,
+          textAlign: TextAlign.right,
           decoration: InputDecoration(
-            labelText: "رمز عبور",
+            labelText: tr('password'),
             border: const OutlineInputBorder(),
             suffixIcon: IconButton(
               icon: Icon(hidePassword ? Icons.visibility : Icons.visibility_off),
@@ -229,7 +239,7 @@ class _LoginPageState extends State<LoginPage> {
         const SizedBox(height: 12),
         TextButton(
           onPressed: loading ? null : openForgotEmailPassword,
-          child: const Text("رمز عبور ایمیل را فراموش کرده‌ام"),
+          child: Text(tr('email_password_forgot')),
         ),
       ],
     );
@@ -242,20 +252,19 @@ class _LoginPageState extends State<LoginPage> {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        appBar: AppBar(title: const Text("ورود به حساب"), centerTitle: true),
+        appBar: AppBar(title: Text(tr('login_to_account')), centerTitle: true),
         body: SingleChildScrollView(
           padding: const EdgeInsets.all(18),
           child: Column(
             children: [
               const SizedBox(height: 20),
-              Icon(isPhone ? Icons.phone_android : Icons.email,
-                  size: 80, color: Colors.deepPurple),
+              Icon(isPhone ? Icons.phone_android : Icons.email, size: 80, color: Colors.deepPurple),
               const SizedBox(height: 20),
               Row(
                 children: [
-                  modeButton(AuthMode.phoneLogin, "شماره", Icons.phone),
+                  modeButton(AuthMode.phoneLogin, tr('phone'), Icons.phone),
                   const SizedBox(width: 8),
-                  modeButton(AuthMode.emailLogin, "ایمیل", Icons.email),
+                  modeButton(AuthMode.emailLogin, tr('email'), Icons.email),
                 ],
               ),
               const SizedBox(height: 18),
@@ -266,13 +275,13 @@ class _LoginPageState extends State<LoginPage> {
                 height: 54,
                 child: FilledButton(
                   onPressed: loading ? null : (isPhone ? loginPhone : loginEmail),
-                  child: Text(loading ? "در حال ورود..." : "ورود"),
+                  child: Text(loading ? tr('logging_in') : tr('login')),
                 ),
               ),
               const SizedBox(height: 12),
               TextButton(
                 onPressed: loading ? null : openRegister,
-                child: const Text("حساب ندارم، ثبت‌نام کنم"),
+                child: Text(tr('no_account_register')),
               ),
             ],
           ),
@@ -281,6 +290,7 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 }
+
 enum RegisterMode { phone, email }
 
 class RegisterPage extends StatefulWidget {
@@ -297,16 +307,19 @@ class _RegisterPageState extends State<RegisterPage> {
   final lastNameController = TextEditingController();
   final phoneController = TextEditingController();
   final securityAnswerController = TextEditingController();
-
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
 
   bool loading = false;
   bool hidePassword = true;
 
+  String tr(String key) => T.tr(key);
+
   void showMessage(String text) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(text, textDirection: TextDirection.rtl)),
+    );
   }
 
   Widget field(
@@ -322,6 +335,8 @@ class _RegisterPageState extends State<RegisterPage> {
         controller: controller,
         keyboardType: type,
         obscureText: obscure,
+        textDirection: type == TextInputType.emailAddress ? TextDirection.ltr : TextDirection.rtl,
+        textAlign: type == TextInputType.emailAddress ? TextAlign.left : TextAlign.right,
         decoration: InputDecoration(
           labelText: label,
           border: const OutlineInputBorder(),
@@ -375,11 +390,8 @@ class _RegisterPageState extends State<RegisterPage> {
     final phone = phoneController.text.trim();
     final securityAnswer = securityAnswerController.text.trim();
 
-    if (firstName.isEmpty ||
-        lastName.isEmpty ||
-        phone.isEmpty ||
-        securityAnswer.isEmpty) {
-      showMessage("لطفاً همه فیلدها را پر کنید");
+    if (firstName.isEmpty || lastName.isEmpty || phone.isEmpty || securityAnswer.isEmpty) {
+      showMessage(tr('fill_all_fields'));
       return;
     }
 
@@ -393,7 +405,7 @@ class _RegisterPageState extends State<RegisterPage> {
         securityAnswer: securityAnswer,
       );
 
-      final code = result["login_code"]?.toString() ?? "";
+      final code = result['login_code']?.toString() ?? '';
 
       if (!mounted) return;
 
@@ -403,9 +415,9 @@ class _RegisterPageState extends State<RegisterPage> {
           return Directionality(
             textDirection: TextDirection.rtl,
             child: AlertDialog(
-              title: const Text("ثبت‌نام موفق شد"),
+              title: Text(tr('register_success')),
               content: SelectableText(
-                "کد ورود شما:\n\n$code\n\nاین کد را نگه دارید.",
+                '${tr('your_login_code')}\n\n$code\n\n${tr('keep_this_code')}',
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 20),
               ),
@@ -413,13 +425,13 @@ class _RegisterPageState extends State<RegisterPage> {
                 TextButton(
                   onPressed: () {
                     Clipboard.setData(ClipboardData(text: code));
-                    showMessage("کد کپی شد");
+                    showMessage(tr('code_copied'));
                   },
-                  child: const Text("کپی کد"),
+                  child: Text(tr('copy_code')),
                 ),
                 FilledButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text("فهمیدم"),
+                  child: Text(tr('understood')),
                 ),
               ],
             ),
@@ -429,7 +441,7 @@ class _RegisterPageState extends State<RegisterPage> {
 
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
-      showMessage(e.toString().replaceAll("Exception:", "").trim());
+      showMessage(e.toString().replaceAll('Exception:', '').trim());
     }
 
     if (mounted) setState(() => loading = false);
@@ -443,21 +455,18 @@ class _RegisterPageState extends State<RegisterPage> {
     final email = emailController.text.trim();
     final password = passwordController.text;
 
-    if (firstName.isEmpty ||
-        lastName.isEmpty ||
-        email.isEmpty ||
-        password.isEmpty) {
-      showMessage("نام، نام خانوادگی، ایمیل و رمز عبور را وارد کنید");
+    if (firstName.isEmpty || lastName.isEmpty || email.isEmpty || password.isEmpty) {
+      showMessage(tr('enter_register_email_fields'));
       return;
     }
 
-    if (!email.contains("@") || !email.contains(".")) {
-      showMessage("ایمیل معتبر وارد کنید");
+    if (!email.contains('@') || !email.contains('.')) {
+      showMessage(tr('enter_valid_email'));
       return;
     }
 
     if (password.length < 6) {
-      showMessage("رمز عبور باید حداقل ۶ حرف باشد");
+      showMessage(tr('password_min_6'));
       return;
     }
 
@@ -475,16 +484,14 @@ class _RegisterPageState extends State<RegisterPage> {
 
       final result = await Navigator.push(
         context,
-        MaterialPageRoute(
-          builder: (_) => VerifyEmailPage(email: email),
-        ),
+        MaterialPageRoute(builder: (_) => VerifyEmailPage(email: email)),
       );
 
       if (result == true && mounted) {
         Navigator.pop(context, true);
       }
     } catch (e) {
-      showMessage(e.toString().replaceAll("Exception:", "").trim());
+      showMessage(e.toString().replaceAll('Exception:', '').trim());
     }
 
     if (mounted) setState(() => loading = false);
@@ -508,47 +515,35 @@ class _RegisterPageState extends State<RegisterPage> {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        appBar: AppBar(title: const Text("ثبت‌نام"), centerTitle: true),
+        appBar: AppBar(title: Text(tr('register')), centerTitle: true),
         body: SingleChildScrollView(
           padding: const EdgeInsets.all(18),
           child: Column(
             children: [
-              Icon(
-                isPhone ? Icons.person_add : Icons.mark_email_read,
-                size: 80,
-                color: Colors.deepPurple,
-              ),
+              Icon(isPhone ? Icons.person_add : Icons.mark_email_read, size: 80, color: Colors.deepPurple),
               const SizedBox(height: 20),
               Row(
                 children: [
-                  modeButton(RegisterMode.phone, "شماره", Icons.phone),
+                  modeButton(RegisterMode.phone, tr('phone'), Icons.phone),
                   const SizedBox(width: 8),
-                  modeButton(RegisterMode.email, "ایمیل", Icons.email),
+                  modeButton(RegisterMode.email, tr('email'), Icons.email),
                 ],
               ),
               const SizedBox(height: 18),
-              field(firstNameController, "نام"),
-              field(lastNameController, "نام خانوادگی"),
+              field(firstNameController, tr('first_name')),
+              field(lastNameController, tr('last_name')),
               if (isPhone) ...[
-                field(phoneController, "شماره تلفن", type: TextInputType.phone),
-                field(securityAnswerController, "نام اولین معلم شما چیست؟"),
+                field(phoneController, tr('phone_number'), type: TextInputType.phone),
+                field(securityAnswerController, tr('security_question_teacher')),
               ] else ...[
-                field(
-                  emailController,
-                  "ایمیل",
-                  type: TextInputType.emailAddress,
-                ),
+                field(emailController, tr('email'), type: TextInputType.emailAddress),
                 field(
                   passwordController,
-                  "رمز عبور",
+                  tr('password'),
                   obscure: hidePassword,
                   suffixIcon: IconButton(
-                    icon: Icon(
-                      hidePassword ? Icons.visibility : Icons.visibility_off,
-                    ),
-                    onPressed: () {
-                      setState(() => hidePassword = !hidePassword);
-                    },
+                    icon: Icon(hidePassword ? Icons.visibility : Icons.visibility_off),
+                    onPressed: () => setState(() => hidePassword = !hidePassword),
                   ),
                 ),
               ],
@@ -557,10 +552,8 @@ class _RegisterPageState extends State<RegisterPage> {
                 width: double.infinity,
                 height: 54,
                 child: FilledButton(
-                  onPressed: loading
-                      ? null
-                      : (isPhone ? registerPhone : registerEmail),
-                  child: Text(loading ? "در حال ثبت‌نام..." : "ثبت‌نام"),
+                  onPressed: loading ? null : (isPhone ? registerPhone : registerEmail),
+                  child: Text(loading ? tr('registering') : tr('register')),
                 ),
               ),
             ],
@@ -574,10 +567,7 @@ class _RegisterPageState extends State<RegisterPage> {
 class VerifyEmailPage extends StatefulWidget {
   final String email;
 
-  const VerifyEmailPage({
-    super.key,
-    required this.email,
-  });
+  const VerifyEmailPage({super.key, required this.email});
 
   @override
   State<VerifyEmailPage> createState() => _VerifyEmailPageState();
@@ -587,9 +577,13 @@ class _VerifyEmailPageState extends State<VerifyEmailPage> {
   final codeController = TextEditingController();
   bool loading = false;
 
+  String tr(String key) => T.tr(key);
+
   void showMessage(String text) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(text, textDirection: TextDirection.rtl)),
+    );
   }
 
   Future<void> verify() async {
@@ -598,24 +592,19 @@ class _VerifyEmailPageState extends State<VerifyEmailPage> {
     final code = codeController.text.trim();
 
     if (code.isEmpty) {
-      showMessage("کد ایمیل را وارد کنید");
+      showMessage(tr('enter_email_code'));
       return;
     }
 
     setState(() => loading = true);
 
     try {
-      await Api.verifyEmail(
-        email: widget.email,
-        code: code,
-      );
-
+      await Api.verifyEmail(email: widget.email, code: code);
       if (!mounted) return;
-
-      showMessage("ایمیل تأیید شد");
+      showMessage(tr('email_verified'));
       Navigator.pop(context, true);
     } catch (e) {
-      showMessage(e.toString().replaceAll("Exception:", "").trim());
+      showMessage(e.toString().replaceAll('Exception:', '').trim());
     }
 
     if (mounted) setState(() => loading = false);
@@ -628,11 +617,10 @@ class _VerifyEmailPageState extends State<VerifyEmailPage> {
 
     try {
       await Api.resendEmailCode(email: widget.email);
-
       if (!mounted) return;
-      showMessage("کد دوباره ارسال شد");
+      showMessage(tr('code_resent'));
     } catch (e) {
-      showMessage(e.toString().replaceAll("Exception:", "").trim());
+      showMessage(e.toString().replaceAll('Exception:', '').trim());
     }
 
     if (mounted) setState(() => loading = false);
@@ -649,7 +637,7 @@ class _VerifyEmailPageState extends State<VerifyEmailPage> {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        appBar: AppBar(title: const Text("تأیید ایمیل"), centerTitle: true),
+        appBar: AppBar(title: Text(tr('verify_email')), centerTitle: true),
         body: SingleChildScrollView(
           padding: const EdgeInsets.all(18),
           child: Column(
@@ -657,20 +645,22 @@ class _VerifyEmailPageState extends State<VerifyEmailPage> {
               const Icon(Icons.verified_user, size: 80, color: Colors.deepPurple),
               const SizedBox(height: 16),
               Text(
-                "کد تأیید به ایمیل زیر ارسال شد:\n${widget.email}",
+                '${tr('verify_code_sent_to')}\n${widget.email}',
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 18),
               TextField(
                 controller: codeController,
                 keyboardType: TextInputType.number,
+                textDirection: TextDirection.rtl,
+                textAlign: TextAlign.right,
                 inputFormatters: [
                   FilteringTextInputFormatter.digitsOnly,
                   LengthLimitingTextInputFormatter(6),
                 ],
-                decoration: const InputDecoration(
-                  labelText: "کد تأیید ایمیل",
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: tr('email_verify_code'),
+                  border: const OutlineInputBorder(),
                 ),
               ),
               const SizedBox(height: 18),
@@ -679,12 +669,12 @@ class _VerifyEmailPageState extends State<VerifyEmailPage> {
                 height: 54,
                 child: FilledButton(
                   onPressed: loading ? null : verify,
-                  child: Text(loading ? "در حال تأیید..." : "تأیید ایمیل"),
+                  child: Text(loading ? tr('verifying') : tr('verify_email')),
                 ),
               ),
               TextButton(
                 onPressed: loading ? null : resend,
-                child: const Text("ارسال دوباره کد"),
+                child: Text(tr('resend_code')),
               ),
             ],
           ),
@@ -709,21 +699,23 @@ class _ForgotCodePageState extends State<ForgotCodePage> {
 
   bool loading = false;
 
+  String tr(String key) => T.tr(key);
+
   void showMessage(String text) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(text, textDirection: TextDirection.rtl)),
+    );
   }
 
-  Widget field(
-    TextEditingController controller,
-    String label, {
-    TextInputType type = TextInputType.text,
-  }) {
+  Widget field(TextEditingController controller, String label, {TextInputType type = TextInputType.text}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: TextField(
         controller: controller,
         keyboardType: type,
+        textDirection: TextDirection.rtl,
+        textAlign: TextAlign.right,
         decoration: InputDecoration(
           labelText: label,
           border: const OutlineInputBorder(),
@@ -740,11 +732,8 @@ class _ForgotCodePageState extends State<ForgotCodePage> {
     final phone = phoneController.text.trim();
     final answer = answerController.text.trim();
 
-    if (firstName.isEmpty ||
-        lastName.isEmpty ||
-        phone.isEmpty ||
-        answer.isEmpty) {
-      showMessage("همه فیلدها را پر کنید");
+    if (firstName.isEmpty || lastName.isEmpty || phone.isEmpty || answer.isEmpty) {
+      showMessage(tr('fill_all_fields'));
       return;
     }
 
@@ -758,7 +747,7 @@ class _ForgotCodePageState extends State<ForgotCodePage> {
         securityAnswer: answer,
       );
 
-      final code = data["new_code"]?.toString() ?? "";
+      final code = data['new_code']?.toString() ?? '';
 
       if (!mounted) return;
 
@@ -768,9 +757,9 @@ class _ForgotCodePageState extends State<ForgotCodePage> {
           return Directionality(
             textDirection: TextDirection.rtl,
             child: AlertDialog(
-              title: const Text("کد جدید ساخته شد"),
+              title: Text(tr('new_code_created')),
               content: SelectableText(
-                "کد ورود جدید شما:\n\n$code\n\nاین کد را حتماً نگه دارید.",
+                '${tr('your_new_login_code')}\n\n$code\n\n${tr('keep_this_code')}',
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 20),
               ),
@@ -778,13 +767,13 @@ class _ForgotCodePageState extends State<ForgotCodePage> {
                 TextButton(
                   onPressed: () {
                     Clipboard.setData(ClipboardData(text: code));
-                    showMessage("کد کپی شد");
+                    showMessage(tr('code_copied'));
                   },
-                  child: const Text("کپی کد"),
+                  child: Text(tr('copy_code')),
                 ),
                 FilledButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text("فهمیدم"),
+                  child: Text(tr('understood')),
                 ),
               ],
             ),
@@ -794,7 +783,7 @@ class _ForgotCodePageState extends State<ForgotCodePage> {
 
       if (mounted) Navigator.pop(context);
     } catch (e) {
-      showMessage(e.toString().replaceAll("Exception:", "").trim());
+      showMessage(e.toString().replaceAll('Exception:', '').trim());
     }
 
     if (mounted) setState(() => loading = false);
@@ -814,24 +803,24 @@ class _ForgotCodePageState extends State<ForgotCodePage> {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        appBar: AppBar(title: const Text("فراموشی کد ورود"), centerTitle: true),
+        appBar: AppBar(title: Text(tr('forgot_code')), centerTitle: true),
         body: SingleChildScrollView(
           padding: const EdgeInsets.all(18),
           child: Column(
             children: [
               const Icon(Icons.password, size: 80, color: Colors.deepPurple),
               const SizedBox(height: 20),
-              field(firstNameController, "نام"),
-              field(lastNameController, "نام خانوادگی"),
-              field(phoneController, "شماره تلفن", type: TextInputType.phone),
-              field(answerController, "نام اولین معلم شما چیست؟"),
+              field(firstNameController, tr('first_name')),
+              field(lastNameController, tr('last_name')),
+              field(phoneController, tr('phone_number'), type: TextInputType.phone),
+              field(answerController, tr('security_question_teacher')),
               const SizedBox(height: 18),
               SizedBox(
                 width: double.infinity,
                 height: 54,
                 child: FilledButton(
                   onPressed: loading ? null : recoverCode,
-                  child: Text(loading ? "در حال بررسی..." : "دریافت کد جدید"),
+                  child: Text(loading ? tr('checking') : tr('get_new_code')),
                 ),
               ),
             ],
@@ -846,8 +835,7 @@ class ForgotEmailPasswordPage extends StatefulWidget {
   const ForgotEmailPasswordPage({super.key});
 
   @override
-  State<ForgotEmailPasswordPage> createState() =>
-      _ForgotEmailPasswordPageState();
+  State<ForgotEmailPasswordPage> createState() => _ForgotEmailPasswordPageState();
 }
 
 class _ForgotEmailPasswordPageState extends State<ForgotEmailPasswordPage> {
@@ -859,9 +847,13 @@ class _ForgotEmailPasswordPageState extends State<ForgotEmailPasswordPage> {
   bool codeSent = false;
   bool hidePassword = true;
 
+  String tr(String key) => T.tr(key);
+
   void showMessage(String text) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(text, textDirection: TextDirection.rtl)),
+    );
   }
 
   Future<void> sendCode() async {
@@ -870,7 +862,7 @@ class _ForgotEmailPasswordPageState extends State<ForgotEmailPasswordPage> {
     final email = emailController.text.trim();
 
     if (email.isEmpty) {
-      showMessage("ایمیل را وارد کنید");
+      showMessage(tr('enter_email'));
       return;
     }
 
@@ -878,13 +870,11 @@ class _ForgotEmailPasswordPageState extends State<ForgotEmailPasswordPage> {
 
     try {
       await Api.forgotPasswordEmail(email: email);
-
       if (!mounted) return;
-
       setState(() => codeSent = true);
-      showMessage("کد بازیابی به ایمیل ارسال شد");
+      showMessage(tr('recovery_code_sent'));
     } catch (e) {
-      showMessage(e.toString().replaceAll("Exception:", "").trim());
+      showMessage(e.toString().replaceAll('Exception:', '').trim());
     }
 
     if (mounted) setState(() => loading = false);
@@ -898,30 +888,24 @@ class _ForgotEmailPasswordPageState extends State<ForgotEmailPasswordPage> {
     final password = passwordController.text;
 
     if (email.isEmpty || code.isEmpty || password.isEmpty) {
-      showMessage("ایمیل، کد و رمز جدید را وارد کنید");
+      showMessage(tr('enter_email_code_password'));
       return;
     }
 
     if (password.length < 6) {
-      showMessage("رمز جدید باید حداقل ۶ حرف باشد");
+      showMessage(tr('password_min_6'));
       return;
     }
 
     setState(() => loading = true);
 
     try {
-      await Api.resetPasswordEmail(
-        email: email,
-        code: code,
-        password: password,
-      );
-
+      await Api.resetPasswordEmail(email: email, code: code, password: password);
       if (!mounted) return;
-
-      showMessage("رمز عبور تغییر کرد، حالا وارد شوید");
+      showMessage(tr('password_changed'));
       Navigator.pop(context);
     } catch (e) {
-      showMessage(e.toString().replaceAll("Exception:", "").trim());
+      showMessage(e.toString().replaceAll('Exception:', '').trim());
     }
 
     if (mounted) setState(() => loading = false);
@@ -940,7 +924,7 @@ class _ForgotEmailPasswordPageState extends State<ForgotEmailPasswordPage> {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        appBar: AppBar(title: const Text("بازیابی رمز ایمیل"), centerTitle: true),
+        appBar: AppBar(title: Text(tr('reset_email_password')), centerTitle: true),
         body: SingleChildScrollView(
           padding: const EdgeInsets.all(18),
           child: Column(
@@ -951,9 +935,11 @@ class _ForgotEmailPasswordPageState extends State<ForgotEmailPasswordPage> {
                 controller: emailController,
                 enabled: !codeSent,
                 keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(
-                  labelText: "ایمیل",
-                  border: OutlineInputBorder(),
+                textDirection: TextDirection.ltr,
+                textAlign: TextAlign.left,
+                decoration: InputDecoration(
+                  labelText: tr('email'),
+                  border: const OutlineInputBorder(),
                 ),
               ),
               const SizedBox(height: 12),
@@ -961,29 +947,29 @@ class _ForgotEmailPasswordPageState extends State<ForgotEmailPasswordPage> {
                 TextField(
                   controller: codeController,
                   keyboardType: TextInputType.number,
+                  textDirection: TextDirection.rtl,
+                  textAlign: TextAlign.right,
                   inputFormatters: [
                     FilteringTextInputFormatter.digitsOnly,
                     LengthLimitingTextInputFormatter(6),
                   ],
-                  decoration: const InputDecoration(
-                    labelText: "کد بازیابی",
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: tr('recovery_code'),
+                    border: const OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: passwordController,
                   obscureText: hidePassword,
+                  textDirection: TextDirection.rtl,
+                  textAlign: TextAlign.right,
                   decoration: InputDecoration(
-                    labelText: "رمز عبور جدید",
+                    labelText: tr('new_password'),
                     border: const OutlineInputBorder(),
                     suffixIcon: IconButton(
-                      icon: Icon(
-                        hidePassword ? Icons.visibility : Icons.visibility_off,
-                      ),
-                      onPressed: () {
-                        setState(() => hidePassword = !hidePassword);
-                      },
+                      icon: Icon(hidePassword ? Icons.visibility : Icons.visibility_off),
+                      onPressed: () => setState(() => hidePassword = !hidePassword),
                     ),
                   ),
                 ),
@@ -993,13 +979,11 @@ class _ForgotEmailPasswordPageState extends State<ForgotEmailPasswordPage> {
                 width: double.infinity,
                 height: 54,
                 child: FilledButton(
-                  onPressed: loading
-                      ? null
-                      : (codeSent ? resetPassword : sendCode),
+                  onPressed: loading ? null : (codeSent ? resetPassword : sendCode),
                   child: Text(
                     loading
-                        ? "لطفاً صبر کنید..."
-                        : (codeSent ? "تغییر رمز عبور" : "ارسال کد بازیابی"),
+                        ? tr('please_wait')
+                        : (codeSent ? tr('change_password') : tr('send_recovery_code')),
                   ),
                 ),
               ),

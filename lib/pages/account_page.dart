@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../core/api.dart';
 import '../core/session.dart';
+import '../core/lang.dart';
 
 import 'ad_detail_page.dart';
 import 'auth_page.dart';
 import 'chat_list_page.dart';
 import 'create_ad_page.dart';
+import 'main_shell_page.dart';
 
 class AccountPage extends StatefulWidget {
   const AccountPage({super.key});
@@ -25,10 +27,10 @@ class _AccountPageState extends State<AccountPage> {
     final phone = Session.userPhone.trim();
 
     if (email.isNotEmpty) return email;
-    if (phone.startsWith("email_")) return "ایمیل ثبت شده";
+    if (phone.startsWith("email_")) return T.tr("email_registered");
     if (phone.isNotEmpty) return phone;
 
-    return "اطلاعات تماس ثبت نشده";
+    return T.tr("contact_not_set");
   }
 
   Future<void> openLogin() async {
@@ -47,17 +49,17 @@ class _AccountPageState extends State<AccountPage> {
         return Directionality(
           textDirection: TextDirection.rtl,
           child: AlertDialog(
-            title: const Text("خروج از حساب"),
-            content: const Text("آیا مطمئن هستید که می‌خواهید خارج شوید؟"),
+            title: Text(T.tr("logout_title")),
+            content: Text(T.tr("logout_confirm")),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
-                child: const Text("لغو"),
+                child: Text(T.tr("cancel")),
               ),
               FilledButton(
                 style: FilledButton.styleFrom(backgroundColor: Colors.red),
                 onPressed: () => Navigator.pop(context, true),
-                child: const Text("خروج"),
+                child: Text(T.tr("logout")),
               ),
             ],
           ),
@@ -72,7 +74,7 @@ class _AccountPageState extends State<AccountPage> {
     if (!mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("از حساب خارج شدید")),
+      SnackBar(content: Text(T.tr("logout_done"))),
     );
 
     setState(() {});
@@ -95,7 +97,7 @@ class _AccountPageState extends State<AccountPage> {
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text("حساب من"),
+          title: Text(T.tr("account")),
           centerTitle: true,
         ),
         body: ListView(
@@ -125,8 +127,8 @@ class _AccountPageState extends State<AccountPage> {
                       children: [
                         Text(
                           logged
-                              ? (name.isEmpty ? "کاربر HeratBazar" : name)
-                              : "وارد حساب نشده‌اید",
+                              ? (name.isEmpty ? T.tr("user_heratbazar") : name)
+                              : T.tr("not_logged_in"),
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 19,
@@ -135,7 +137,7 @@ class _AccountPageState extends State<AccountPage> {
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          logged ? contact : "برای استفاده کامل وارد شوید",
+                          logged ? contact : T.tr("use_full"),
                           style: const TextStyle(color: Colors.white70),
                         ),
                       ],
@@ -151,8 +153,8 @@ class _AccountPageState extends State<AccountPage> {
               _AccountTile(
                 icon: Icons.login,
                 color: Colors.green,
-                title: "ورود / ثبت‌نام",
-                subtitle: "ورود به حساب یا ساخت حساب جدید",
+                title: T.tr("login_register"),
+                subtitle: T.tr("login_register_sub"),
                 onTap: openLogin,
               ),
 
@@ -160,8 +162,8 @@ class _AccountPageState extends State<AccountPage> {
               _AccountTile(
                 icon: Icons.person,
                 color: Colors.deepPurple,
-                title: "پروفایل",
-                subtitle: "مشاهده اطلاعات حساب",
+                title: T.tr("profile"),
+                subtitle: T.tr("profile_sub"),
                 onTap: () => openPage(const ProfileSectionPage()),
               ),
 
@@ -169,8 +171,8 @@ class _AccountPageState extends State<AccountPage> {
               _AccountTile(
                 icon: Icons.list_alt,
                 color: Colors.blue,
-                title: "آگهی‌های من",
-                subtitle: "مدیریت، ویرایش و حذف آگهی‌های شما",
+                title: T.tr("my_ads"),
+                subtitle: T.tr("my_ads_sub"),
                 onTap: () => openPage(const MyAdsSectionPage()),
               ),
 
@@ -178,32 +180,32 @@ class _AccountPageState extends State<AccountPage> {
               _AccountTile(
                 icon: Icons.chat,
                 color: Colors.orange,
-                title: "پیام‌ها",
-                subtitle: "گفتگوهای خرید و فروش",
+                title: T.tr("messages"),
+                subtitle: T.tr("messages_sub"),
                 onTap: () => openPage(const ChatListPage()),
               ),
 
             _AccountTile(
               icon: Icons.add_circle,
               color: Colors.green,
-              title: "ثبت آگهی",
-              subtitle: "ثبت کالا، خدمات یا ملک برای فروش",
+              title: T.tr("post_ad"),
+              subtitle: T.tr("post_ad_sub"),
               onTap: () => openPage(const CreateAdPage()),
             ),
 
             _AccountTile(
               icon: Icons.security,
               color: Colors.red,
-              title: "راهنمای امنیت",
-              subtitle: "جلوگیری از کلاهبرداری و معامله امن",
+              title: T.tr("safety_guide"),
+              subtitle: T.tr("safety_guide_sub"),
               onTap: () => openPage(const SafetyGuidePage()),
             ),
 
             _AccountTile(
               icon: Icons.settings,
               color: Colors.grey,
-              title: "تنظیمات",
-              subtitle: "تنظیمات برنامه",
+              title: T.tr("settings"),
+              subtitle: T.tr("settings_sub"),
               onTap: () => openPage(const SettingsSectionPage()),
             ),
 
@@ -211,8 +213,8 @@ class _AccountPageState extends State<AccountPage> {
               _AccountTile(
                 icon: Icons.logout,
                 color: Colors.red,
-                title: "خروج",
-                subtitle: "خروج از حساب فعلی",
+                title: T.tr("logout"),
+                subtitle: T.tr("logout_sub"),
                 onTap: logout,
               ),
           ],
@@ -221,6 +223,7 @@ class _AccountPageState extends State<AccountPage> {
     );
   }
 }
+
 class _AccountTile extends StatelessWidget {
   final IconData icon;
   final Color color;
@@ -265,7 +268,7 @@ class ProfileSectionPage extends StatelessWidget {
     final phone = Session.userPhone.trim();
 
     if (email.isNotEmpty) return email;
-    if (phone.startsWith("email_")) return "ایمیل ثبت شده";
+    if (phone.startsWith("email_")) return T.tr("email_registered");
     if (phone.isNotEmpty) return phone;
 
     return "";
@@ -273,8 +276,8 @@ class ProfileSectionPage extends StatelessWidget {
 
   String contactTitle() {
     final email = Session.currentUser?["email"]?.toString().trim() ?? "";
-    if (email.isNotEmpty) return "ایمیل";
-    return "شماره";
+    if (email.isNotEmpty) return T.tr("email");
+    return T.tr("phone");
   }
 
   @override
@@ -285,7 +288,7 @@ class ProfileSectionPage extends StatelessWidget {
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text("پروفایل"),
+          title: Text(T.tr("profile")),
           centerTitle: true,
         ),
         body: ListView(
@@ -296,13 +299,19 @@ class ProfileSectionPage extends StatelessWidget {
               child: Icon(Icons.person, size: 54),
             ),
             const SizedBox(height: 18),
-            _InfoRow(title: "نام", value: user["first_name"]?.toString() ?? ""),
             _InfoRow(
-              title: "نام خانوادگی",
+              title: T.tr("first_name"),
+              value: user["first_name"]?.toString() ?? "",
+            ),
+            _InfoRow(
+              title: T.tr("last_name"),
               value: user["last_name"]?.toString() ?? "",
             ),
             _InfoRow(title: contactTitle(), value: contactValue()),
-            _InfoRow(title: "شناسه کاربر", value: Session.userId?.toString() ?? ""),
+            _InfoRow(
+              title: T.tr("user_id"),
+              value: Session.userId?.toString() ?? "",
+            ),
           ],
         ),
       ),
@@ -365,7 +374,7 @@ class _MyAdsSectionPageState extends State<MyAdsSectionPage> {
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text("آگهی‌های من"),
+          title: Text(T.tr("my_ads")),
           centerTitle: true,
         ),
         body: FutureBuilder<List<dynamic>>(
@@ -387,8 +396,8 @@ class _MyAdsSectionPageState extends State<MyAdsSectionPage> {
             final ads = snapshot.data ?? [];
 
             if (ads.isEmpty) {
-              return const Center(
-                child: Text("شما هنوز آگهی ثبت نکرده‌اید"),
+              return Center(
+                child: Text(T.tr("my_ads_empty")),
               );
             }
 
@@ -421,14 +430,14 @@ class _MyAdsSectionPageState extends State<MyAdsSectionPage> {
                             ),
                           ),
                     title: Text(
-                      title.isEmpty ? "بدون عنوان" : title,
+                      title.isEmpty ? T.tr("no_title") : title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                     subtitle: Text(
                       price.isEmpty || price == "0"
-                          ? "قیمت توافقی"
-                          : "$price AFN",
+                          ? T.tr("negotiable_price")
+                          : "$price ${T.tr("afghani")}",
                     ),
                     trailing: const Icon(Icons.chevron_left),
                     onTap: () => openAd(ad),
@@ -442,8 +451,26 @@ class _MyAdsSectionPageState extends State<MyAdsSectionPage> {
     );
   }
 }
-class SettingsSectionPage extends StatelessWidget {
+
+class SettingsSectionPage extends StatefulWidget {
   const SettingsSectionPage({super.key});
+
+  @override
+  State<SettingsSectionPage> createState() => _SettingsSectionPageState();
+}
+
+class _SettingsSectionPageState extends State<SettingsSectionPage> {
+  Future<void> changeLanguage(String value) async {
+    await T.set(value);
+
+    if (!mounted) return;
+
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const MainShellPage()),
+      (route) => false,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -451,17 +478,38 @@ class SettingsSectionPage extends StatelessWidget {
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text("تنظیمات"),
+          title: Text(T.tr("settings")),
           centerTitle: true,
         ),
         body: ListView(
           padding: const EdgeInsets.all(16),
-          children: const [
-            _InfoRow(title: "زبان", value: "فارسی / دری"),
-            _InfoRow(title: "نسخه", value: "1.0.0"),
-            SizedBox(height: 20),
+          children: [
+            Card(
+              child: RadioListTile<String>(
+                value: "fa",
+                groupValue: T.lang,
+                onChanged: (v) {
+                  if (v != null) changeLanguage(v);
+                },
+                title: Text(T.tr("dari")),
+                subtitle: Text(T.tr("dari_subtitle")),
+              ),
+            ),
+            Card(
+              child: RadioListTile<String>(
+                value: "ps",
+                groupValue: T.lang,
+                onChanged: (v) {
+                  if (v != null) changeLanguage(v);
+                },
+                title: Text(T.tr("pashto")),
+                subtitle: Text(T.tr("pashto_subtitle")),
+              ),
+            ),
+            _InfoRow(title: T.tr("version"), value: "1.0.0"),
+            const SizedBox(height: 20),
             Text(
-              "تنظیمات بیشتر بعداً اضافه می‌شود.",
+              T.tr("more_settings_soon"),
               textAlign: TextAlign.center,
             ),
           ],
@@ -531,7 +579,7 @@ class SafetyGuidePage extends StatelessWidget {
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text("راهنمای امنیت"),
+          title: Text(T.tr("safety_guide")),
           centerTitle: true,
         ),
         body: ListView(
@@ -544,10 +592,10 @@ class SafetyGuidePage extends StatelessWidget {
                 borderRadius: BorderRadius.circular(18),
                 border: Border.all(color: Colors.red.withOpacity(0.35)),
               ),
-              child: const Text(
-                "⛔ افغانستان بازار هیچ‌وقت از شما کردیت موبایل، رمز کارت، کد تأیید، بیعانه یا پرداخت قبل از دیدن کالا درخواست نمی‌کند.",
+              child: Text(
+                T.tr("safety_warning"),
                 textAlign: TextAlign.right,
-                style: TextStyle(
+                style: const TextStyle(
                   color: Colors.red,
                   fontSize: 16,
                   fontWeight: FontWeight.w900,
@@ -560,75 +608,75 @@ class SafetyGuidePage extends StatelessWidget {
             section(
               icon: Icons.warning,
               color: Colors.orange,
-              title: "نشانه‌های کلاهبرداری",
+              title: T.tr("scam_signs"),
               items: [
-                "قیمت بسیار پایین‌تر از بازار",
-                "عجله برای گرفتن پول یا تحویل کالا",
-                "درخواست بیعانه قبل از دیدن کالا",
-                "درخواست ارسال کردیت موبایل",
-                "ارسال لینک پرداخت ناشناس",
-                "رسید بانکی یا اسکرین‌شات جعلی",
-                "درخواست رمز کارت، رمز پویا یا کد تأیید",
-                "خودداری از ملاقات حضوری",
-                "انتقال گفتگو به بیرون از برنامه برای پرداخت مشکوک",
+                T.tr("scam_1"),
+                T.tr("scam_2"),
+                T.tr("scam_3"),
+                T.tr("scam_4"),
+                T.tr("scam_5"),
+                T.tr("scam_6"),
+                T.tr("scam_7"),
+                T.tr("scam_8"),
+                T.tr("scam_9"),
               ],
             ),
 
             section(
               icon: Icons.mobile_friendly,
               color: Colors.red,
-              title: "کردیت موبایل نفرستید",
+              title: T.tr("credit_warning"),
               items: [
-                "برای هیچ‌کس کردیت MTN، Roshan، Etisalat، AWCC یا Salaam نفرستید.",
-                "درخواست کردیت معمولاً نشانه کلاهبرداری است.",
-                "کردیت ارسال‌شده قابل برگشت نیست.",
-                "اگر کسی گفت اول کردیت بفرست تا کالا را نگه دارم، معامله را قطع کنید.",
+                T.tr("credit_1"),
+                T.tr("credit_2"),
+                T.tr("credit_3"),
+                T.tr("credit_4"),
               ],
             ),
 
             section(
               icon: Icons.shopping_bag,
               color: Colors.green,
-              title: "خرید امن",
+              title: T.tr("safe_buying"),
               items: [
-                "تا حد امکان حضوری معامله کنید.",
-                "قبل از پرداخت، کالا را کامل بررسی کنید.",
-                "تا وقتی کالا را ندیده‌اید، پول یا بیعانه نفرستید.",
-                "به عکس، ویدیو یا وعده فروشنده به تنهایی اعتماد نکنید.",
-                "در مکان عمومی و امن معامله کنید.",
+                T.tr("buy_1"),
+                T.tr("buy_2"),
+                T.tr("buy_3"),
+                T.tr("buy_4"),
+                T.tr("buy_5"),
               ],
             ),
 
             section(
               icon: Icons.sell,
               color: Colors.blue,
-              title: "فروش امن",
+              title: T.tr("safe_selling"),
               items: [
-                "قبل از اطمینان از دریافت پول، کالا را تحویل ندهید.",
-                "به رسید بانکی یا پیامک جعلی اعتماد نکنید.",
-                "موجودی حساب خود را مستقیم بررسی کنید.",
-                "اگر خریدار عجله یا فشار آورد، معامله را متوقف کنید.",
+                T.tr("sell_1"),
+                T.tr("sell_2"),
+                T.tr("sell_3"),
+                T.tr("sell_4"),
               ],
             ),
 
             section(
               icon: Icons.report,
               color: Colors.deepPurple,
-              title: "اگر مشکوک شدید",
+              title: T.tr("if_suspicious"),
               items: [
-                "معامله را فوراً متوقف کنید.",
-                "آگهی را گزارش دهید.",
-                "با پشتیبانی تماس بگیرید.",
-                "در صورت ضرر مالی، موضوع را به مراجع قانونی گزارش دهید.",
+                T.tr("sus_1"),
+                T.tr("sus_2"),
+                T.tr("sus_3"),
+                T.tr("sus_4"),
               ],
             ),
 
             const SizedBox(height: 10),
 
-            const Text(
-              "توجه: افغانستان بازار فقط بستر نشر آگهی و ارتباط کاربران است. مسئولیت بررسی کالا، پرداخت، تحویل، توافقات مالی و هرگونه ضرر یا کلاهبرداری بر عهده خریدار و فروشنده است. افغانستان بازار مسئولیتی در قبال معاملات خارج از برنامه، پرداخت اشتباه، ارسال کردیت، بیعانه، رسید جعلی یا کلاهبرداری کاربران ندارد.",
+            Text(
+              T.tr("safety_note"),
               textAlign: TextAlign.right,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 14,
                 height: 1.7,
                 color: Colors.black87,
@@ -657,7 +705,7 @@ class _InfoRow extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       child: ListTile(
         title: Text(title),
-        subtitle: Text(value.isEmpty ? "ثبت نشده" : value),
+        subtitle: Text(value.isEmpty ? T.tr("not_set") : value),
       ),
     );
   }

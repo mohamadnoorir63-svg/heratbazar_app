@@ -1,3 +1,4 @@
+
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -6,11 +7,13 @@ import 'package:http/http.dart' as http;
 import 'session.dart';
 
 class Api {
+  // آدرس صحیح API
   static const String baseUrl =
-      "https://api.kooktalayi.com/heratbazar-api/api";
+      "https://api.kooktalayi.com/api";
 
+  // آدرس اصلی سایت برای عکس‌ها
   static const String publicBase =
-      "https://api.kooktalayi.com/heratbazar-api";
+      "https://api.kooktalayi.com";
 
   static Uri url(String path) {
     final cleanPath = path.startsWith('/') ? path : '/$path';
@@ -53,17 +56,27 @@ class Api {
   static dynamic decode(http.Response response) {
     try {
       if (response.bodyBytes.isEmpty) return null;
-      return jsonDecode(utf8.decode(response.bodyBytes));
-    } catch (_) {
+
+      final body = utf8.decode(response.bodyBytes).trim();
+
+      if (body.startsWith("<!DOCTYPE") || body.startsWith("<html")) {
+        throw Exception(
+          "این مسیر در سرور JSON برنگرداند. آدرس API یا route اشتباه است.",
+        );
+      }
+
+      return jsonDecode(body);
+    } catch (e) {
+      if (e is Exception) rethrow;
       throw Exception("پاسخ سرور نامعتبر است");
     }
   }
-
   static String errorMessage(dynamic data, String fallback) {
     if (data is Map) {
       if (data["error"] != null) return data["error"].toString();
       if (data["message"] != null) return data["message"].toString();
     }
+
     return fallback;
   }
 
@@ -76,6 +89,10 @@ class Api {
 
     if (data is Map && data["data"] is List) {
       return List<dynamic>.from(data["data"]);
+    }
+
+    if (data is Map && data["items"] is List) {
+      return List<dynamic>.from(data["items"]);
     }
 
     return [];
@@ -112,6 +129,30 @@ class Api {
     }
 
     return clean;
+  }
+
+  static int asInt(dynamic value, {int fallback = 0}) {
+    if (value == null) return fallback;
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value.toString()) ?? fallback;
+  }
+
+  static bool okStatus(http.Response response) {
+    return response.statusCode >= 200 && response.statusCode < 300;
+  }
+
+  static Future<void> ensureOk(http.Response response, String fallback) async {
+    final data = decode(response);
+
+    if (okStatus(response)) {
+      if (data is Map && data["success"] == false) {
+        throw Exception(errorMessage(data, fallback));
+      }
+      return;
+    }
+
+    throw Exception(errorMessage(data, fallback));
   }
 
   static Future<String?> uploadImageBytes({
@@ -311,6 +352,7 @@ class Api {
 
     throw Exception(errorMessage(data, "بازیابی کد انجام نشد"));
   }
+
   // ==================== AUTH EMAIL ====================
 
   static Future<Map<String, dynamic>> registerEmail({
@@ -560,14 +602,14 @@ class Api {
     throw Exception(errorMessage(data, "خطا در ارسال پیام"));
   }
 
-  // ==================== ADMIN USERS ====================
+  // ==================== ADMIN BASIC ====================
 
   static Future<Map<String, dynamic>> getAdminStats() async {
     final response = await http.get(url("/admin/stats"), headers: headers);
     final data = decode(response);
 
     if (response.statusCode == 200 && data is Map) {
-      return mapFrom(data["stats"]);
+      return mapFrom(data["stats"] ?? data);
     }
 
     throw Exception(errorMessage(data, "خطا در دریافت آمار مدیریت"));
@@ -578,7 +620,7 @@ class Api {
     final data = decode(response);
 
     if (response.statusCode == 200 && data is Map) {
-      return mapFrom(data["dashboard"]);
+      return mapFrom(data["dashboard"] ?? data["stats"] ?? data);
     }
 
     throw Exception(errorMessage(data, "خطا در دریافت داشبورد مدیریت"));
@@ -602,11 +644,7 @@ class Api {
       body: jsonEncode({"reason": reason}),
     );
 
-    final data = decode(response);
-
-    if (response.statusCode == 200) return;
-
-    throw Exception(errorMessage(data, "مسدود کردن کاربر انجام نشد"));
+    await ensureOk(response, "مسدود کردن کاربر انجام نشد");
   }
 
   static Future<void> unbanUser(int userId) async {
@@ -615,11 +653,7 @@ class Api {
       headers: headers,
     );
 
-    final data = decode(response);
-
-    if (response.statusCode == 200) return;
-
-    throw Exception(errorMessage(data, "رفع مسدودی کاربر انجام نشد"));
+    await ensureOk(response, "رفع مسدودی کاربر انجام نشد");
   }
 
   static Future<void> verifyUser(int userId) async {
@@ -628,11 +662,7 @@ class Api {
       headers: headers,
     );
 
-    final data = decode(response);
-
-    if (response.statusCode == 200) return;
-
-    throw Exception(errorMessage(data, "تأیید کاربر انجام نشد"));
+    await ensureOk(response, "تأیید کاربر انجام نشد");
   }
 
   static Future<void> unverifyUser(int userId) async {
@@ -641,11 +671,7 @@ class Api {
       headers: headers,
     );
 
-    final data = decode(response);
-
-    if (response.statusCode == 200) return;
-
-    throw Exception(errorMessage(data, "لغو تأیید کاربر انجام نشد"));
+    await ensureOk(response, "لغو تأیید کاربر انجام نشد");
   }
 
   static Future<void> blueVerifyUser(int userId) async {
@@ -654,11 +680,7 @@ class Api {
       headers: headers,
     );
 
-    final data = decode(response);
-
-    if (response.statusCode == 200) return;
-
-    throw Exception(errorMessage(data, "فعال کردن تیک آبی انجام نشد"));
+    await ensureOk(response, "فعال کردن تیک آبی انجام نشد");
   }
 
   static Future<void> unblueVerifyUser(int userId) async {
@@ -667,11 +689,7 @@ class Api {
       headers: headers,
     );
 
-    final data = decode(response);
-
-    if (response.statusCode == 200) return;
-
-    throw Exception(errorMessage(data, "لغو تیک آبی انجام نشد"));
+    await ensureOk(response, "لغو تیک آبی انجام نشد");
   }
 
   static Future<void> premiumUser(int userId, {int days = 30}) async {
@@ -681,11 +699,7 @@ class Api {
       body: jsonEncode({"days": days}),
     );
 
-    final data = decode(response);
-
-    if (response.statusCode == 200) return;
-
-    throw Exception(errorMessage(data, "فعال کردن پریمیوم انجام نشد"));
+    await ensureOk(response, "فعال کردن پریمیوم انجام نشد");
   }
 
   static Future<void> unpremiumUser(int userId) async {
@@ -694,12 +708,9 @@ class Api {
       headers: headers,
     );
 
-    final data = decode(response);
-
-    if (response.statusCode == 200) return;
-
-    throw Exception(errorMessage(data, "لغو پریمیوم انجام نشد"));
+    await ensureOk(response, "لغو پریمیوم انجام نشد");
   }
+
   // ==================== ADMIN ADS ====================
 
   static Future<void> hideAd(int adId, String reason) async {
@@ -709,11 +720,7 @@ class Api {
       body: jsonEncode({"reason": reason}),
     );
 
-    final data = decode(response);
-
-    if (response.statusCode == 200) return;
-
-    throw Exception(errorMessage(data, "مخفی کردن آگهی انجام نشد"));
+    await ensureOk(response, "مخفی کردن آگهی انجام نشد");
   }
 
   static Future<void> unhideAd(int adId) async {
@@ -722,11 +729,7 @@ class Api {
       headers: headers,
     );
 
-    final data = decode(response);
-
-    if (response.statusCode == 200) return;
-
-    throw Exception(errorMessage(data, "نمایش دوباره آگهی انجام نشد"));
+    await ensureOk(response, "نمایش دوباره آگهی انجام نشد");
   }
 
   static Future<void> featureAd(int adId, {int days = 7}) async {
@@ -736,11 +739,7 @@ class Api {
       body: jsonEncode({"days": days}),
     );
 
-    final data = decode(response);
-
-    if (response.statusCode == 200) return;
-
-    throw Exception(errorMessage(data, "ویژه کردن آگهی انجام نشد"));
+    await ensureOk(response, "ویژه کردن آگهی انجام نشد");
   }
 
   static Future<void> unfeatureAd(int adId) async {
@@ -749,11 +748,7 @@ class Api {
       headers: headers,
     );
 
-    final data = decode(response);
-
-    if (response.statusCode == 200) return;
-
-    throw Exception(errorMessage(data, "لغو ویژه آگهی انجام نشد"));
+    await ensureOk(response, "لغو ویژه آگهی انجام نشد");
   }
 
   static Future<void> pinAd(
@@ -770,11 +765,7 @@ class Api {
       }),
     );
 
-    final data = decode(response);
-
-    if (response.statusCode == 200) return;
-
-    throw Exception(errorMessage(data, "پن کردن آگهی انجام نشد"));
+    await ensureOk(response, "پن کردن آگهی انجام نشد");
   }
 
   static Future<void> unpinAd(int adId) async {
@@ -783,11 +774,7 @@ class Api {
       headers: headers,
     );
 
-    final data = decode(response);
-
-    if (response.statusCode == 200) return;
-
-    throw Exception(errorMessage(data, "لغو پن آگهی انجام نشد"));
+    await ensureOk(response, "لغو پن آگهی انجام نشد");
   }
 
   static Future<void> deleteAd(int adId) async {
@@ -796,11 +783,7 @@ class Api {
       headers: headers,
     );
 
-    final data = decode(response);
-
-    if (response.statusCode == 200 || response.statusCode == 204) return;
-
-    throw Exception(errorMessage(data, "حذف آگهی انجام نشد"));
+    await ensureOk(response, "حذف آگهی انجام نشد");
   }
 
   // ==================== ADMIN REPORTS ====================
@@ -827,11 +810,7 @@ class Api {
       body: jsonEncode({"status": status}),
     );
 
-    final data = decode(response);
-
-    if (response.statusCode == 200) return;
-
-    throw Exception(errorMessage(data, "تغییر وضعیت گزارش انجام نشد"));
+    await ensureOk(response, "تغییر وضعیت گزارش انجام نشد");
   }
 
   static Future<void> deleteReport(int reportId) async {
@@ -840,14 +819,10 @@ class Api {
       headers: headers,
     );
 
-    final data = decode(response);
-
-    if (response.statusCode == 200 || response.statusCode == 204) return;
-
-    throw Exception(errorMessage(data, "حذف گزارش انجام نشد"));
+    await ensureOk(response, "حذف گزارش انجام نشد");
   }
 
-  // ==================== ADMIN CHATS ====================
+  // ==================== ADMIN CHATS BASIC ====================
 
   static Future<List<dynamic>> getAdminChats() async {
     final response = await http.get(url("/admin/chats"), headers: headers);
@@ -896,12 +871,9 @@ class Api {
       }),
     );
 
-    final data = decode(response);
-
-    if (response.statusCode == 200 || response.statusCode == 201) return;
-
-    throw Exception(errorMessage(data, "ارسال اعلان انجام نشد"));
+    await ensureOk(response, "ارسال اعلان انجام نشد");
   }
+
   // ==================== ADMIN PAYMENTS ====================
 
   static Future<List<dynamic>> getAdminPayments() async {
@@ -942,11 +914,7 @@ class Api {
       }),
     );
 
-    final data = decode(response);
-
-    if (response.statusCode == 200 || response.statusCode == 201) return;
-
-    throw Exception(errorMessage(data, "ثبت پرداخت انجام نشد"));
+    await ensureOk(response, "ثبت پرداخت انجام نشد");
   }
 
   // ==================== ADMIN SETTINGS ====================
@@ -960,7 +928,7 @@ class Api {
     final data = decode(response);
 
     if (response.statusCode == 200) {
-      return mapFrom(data["settings"]);
+      return mapFrom(data is Map ? data["settings"] : null);
     }
 
     throw Exception(errorMessage(data, "خطا در دریافت تنظیمات"));
@@ -979,11 +947,7 @@ class Api {
       }),
     );
 
-    final data = decode(response);
-
-    if (response.statusCode == 200 || response.statusCode == 201) return;
-
-    throw Exception(errorMessage(data, "ذخیره تنظیمات انجام نشد"));
+    await ensureOk(response, "ذخیره تنظیمات انجام نشد");
   }
 
   // ==================== LOGS ====================
@@ -1003,8 +967,27 @@ class Api {
     throw Exception(errorMessage(data, "خطا در دریافت لاگ‌ها"));
   }
 
+  static Future<List<dynamic>> getAdminAdvancedLogs() async {
+    final response = await http.get(
+      url("/admin/advanced/logs"),
+      headers: headers,
+    );
+
+    final data = decode(response);
+
+    if (response.statusCode == 200) {
+      return listFrom(data, "logs");
+    }
+
+    throw Exception(errorMessage(data, "خطا در دریافت لاگ‌ها"));
+  }
+
   static Future<List<dynamic>> getAdminAuditLogs() async {
-    return getAdminLogs();
+    try {
+      return await getAdminAdvancedLogs();
+    } catch (_) {
+      return getAdminLogs();
+    }
   }
 
   static Future<void> createAdminAuditLog({
@@ -1024,11 +1007,439 @@ class Api {
       }),
     );
 
+    await ensureOk(response, "ثبت لاگ مدیریتی انجام نشد");
+  }
+
+  // ==================== ADMIN ADVANCED DASHBOARD ====================
+
+  static Future<Map<String, dynamic>> getAdminAdvancedStats() async {
+    final response = await http.get(
+      url("/admin/advanced/dashboard/advanced"),
+      headers: headers,
+    );
+
     final data = decode(response);
 
-    if (response.statusCode == 200 || response.statusCode == 201) return;
+    if (response.statusCode == 200 && data is Map) {
+      return mapFrom(data["stats"] ?? data["dashboard"] ?? data);
+    }
 
-    throw Exception(errorMessage(data, "ثبت لاگ مدیریتی انجام نشد"));
+    throw Exception(errorMessage(data, "خطا در دریافت داشبورد پیشرفته"));
+  }
+
+  static Future<Map<String, dynamic>> getAdminAdvancedSummary() async {
+    final response = await http.get(
+      url("/admin/advanced/summary"),
+      headers: headers,
+    );
+
+    final data = decode(response);
+
+    if (response.statusCode == 200 && data is Map) {
+      return mapFrom(data["summary"] ?? data["stats"] ?? data);
+    }
+
+    throw Exception(errorMessage(data, "خطا در دریافت خلاصه مدیریت"));
+  }
+
+  // ==================== ADMIN ADVANCED USERS ====================
+
+  static Future<List<dynamic>> getAdminAdvancedUsers({
+    String q = "",
+    String status = "all",
+  }) async {
+    final response = await http.get(
+      url("/admin/advanced/users").replace(
+        queryParameters: {
+          if (q.trim().isNotEmpty) "q": q.trim(),
+          if (status != "all") "status": status,
+        },
+      ),
+      headers: headers,
+    );
+
+    final data = decode(response);
+
+    if (response.statusCode == 200) return listFrom(data, "users");
+    if (response.statusCode == 404) return getAdminUsers();
+
+    throw Exception(errorMessage(data, "خطا در دریافت کاربران پیشرفته"));
+  }
+
+  static Future<List<dynamic>> getAdminOnlineUsers() async {
+    final response = await http.get(
+      url("/admin/advanced/users/online"),
+      headers: headers,
+    );
+
+    final data = decode(response);
+
+    if (response.statusCode == 200) return listFrom(data, "users");
+
+    throw Exception(errorMessage(data, "خطا در دریافت کاربران آنلاین"));
+  }
+
+  static Future<void> muteUser(
+    int userId, {
+    int hours = 24,
+    int? days,
+  }) async {
+    final muteDays = days ?? ((hours / 24).ceil() < 1 ? 1 : (hours / 24).ceil());
+
+    final response = await http.patch(
+      url("/admin/advanced/users/$userId/mute"),
+      headers: headers,
+      body: jsonEncode({
+        "days": muteDays,
+        "hours": hours,
+      }),
+    );
+
+    await ensureOk(response, "سکوت کردن کاربر انجام نشد");
+  }
+
+  static Future<void> unmuteUser(int userId) async {
+    final response = await http.patch(
+      url("/admin/advanced/users/$userId/unmute"),
+      headers: headers,
+    );
+
+    await ensureOk(response, "رفع سکوت کاربر انجام نشد");
+  }
+
+  // ==================== ADMIN ADVANCED ADS ====================
+
+  static Future<List<dynamic>> getAdminAdvancedAds({
+    String q = "",
+    String status = "all",
+    int? userId,
+  }) async {
+    final response = await http.get(
+      url("/admin/advanced/ads").replace(
+        queryParameters: {
+          if (q.trim().isNotEmpty) "q": q.trim(),
+          if (status != "all") "status": status,
+          if (userId != null) "user_id": userId.toString(),
+        },
+      ),
+      headers: headers,
+    );
+
+    final data = decode(response);
+
+    if (response.statusCode == 200) return listFrom(data, "ads");
+
+    if (response.statusCode == 404) {
+      final ads = await getAds();
+      return ads.where((ad) {
+        if (ad is! Map) return false;
+
+        if (userId != null) {
+          final adUserId = int.tryParse(ad["user_id"]?.toString() ?? "") ?? 0;
+          if (adUserId != userId) return false;
+        }
+
+        if (status != "all") {
+          final adStatus = ad["status"]?.toString() ?? "approved";
+          if (adStatus != status) return false;
+        }
+
+        if (q.trim().isEmpty) return true;
+
+        final text = [
+          ad["id"],
+          ad["title"],
+          ad["description"],
+          ad["phone"],
+          ad["province"],
+          ad["district"],
+          ad["city"],
+          ad["category_name"],
+        ].join(" ").toLowerCase();
+
+        return text.contains(q.trim().toLowerCase());
+      }).toList();
+    }
+
+    throw Exception(errorMessage(data, "خطا در دریافت آگهی‌های پیشرفته"));
+  }
+
+  static Future<List<dynamic>> getPendingAds() async {
+    final response = await http.get(
+      url("/admin/advanced/ads/pending"),
+      headers: headers,
+    );
+
+    final data = decode(response);
+
+    if (response.statusCode == 200) return listFrom(data, "ads");
+
+    throw Exception(errorMessage(data, "خطا در دریافت آگهی‌های منتظر بررسی"));
+  }
+
+  static Future<void> approveAd(int adId) async {
+    final response = await http.post(
+      url("/admin/advanced/ads/$adId/approve"),
+      headers: headers,
+    );
+
+    await ensureOk(response, "تأیید آگهی انجام نشد");
+  }
+
+  static Future<void> rejectAd(int adId, String reason) async {
+    final response = await http.post(
+      url("/admin/advanced/ads/$adId/reject"),
+      headers: headers,
+      body: jsonEncode({"reason": reason.trim()}),
+    );
+
+    await ensureOk(response, "رد آگهی انجام نشد");
+  }
+
+  static Future<void> setAdStatus({
+    required int adId,
+    required String status,
+    String reason = "",
+  }) async {
+    if (status == "approved") {
+      return approveAd(adId);
+    }
+
+    if (status == "rejected") {
+      return rejectAd(adId, reason);
+    }
+
+    final response = await http.patch(
+      url("/admin/advanced/ads/$adId/status"),
+      headers: headers,
+      body: jsonEncode({
+        "status": status,
+        "reason": reason,
+      }),
+    );
+
+    await ensureOk(response, "تغییر وضعیت آگهی انجام نشد");
+  }
+
+  static Future<void> expireAd(int adId) async {
+    final response = await http.patch(
+      url("/admin/advanced/ads/$adId/expire"),
+      headers: headers,
+    );
+
+    await ensureOk(response, "منقضی کردن آگهی انجام نشد");
+  }
+
+  static Future<void> extendAd(int adId, {int days = 30}) async {
+    final response = await http.patch(
+      url("/admin/advanced/ads/$adId/extend"),
+      headers: headers,
+      body: jsonEncode({"days": days}),
+    );
+
+    await ensureOk(response, "تمدید آگهی انجام نشد");
+  }
+
+  static Future<void> pinAdAdvanced(
+    int adId, {
+    int days = 7,
+    int position = 1,
+  }) async {
+    final safeDays = days < 1 ? 1 : days;
+    final safePosition = position < 1 ? 1 : (position > 20 ? 20 : position);
+
+    final response = await http.patch(
+      url("/admin/advanced/ads/$adId/pin-advanced"),
+      headers: headers,
+      body: jsonEncode({
+        "days": safeDays,
+        "position": safePosition,
+      }),
+    );
+
+    await ensureOk(response, "پن پیشرفته آگهی انجام نشد");
+  }
+
+  static Future<void> unpinAdAdvanced(int adId) async {
+    final response = await http.patch(
+      url("/admin/advanced/ads/$adId/unpin-advanced"),
+      headers: headers,
+    );
+
+    await ensureOk(response, "لغو پن پیشرفته انجام نشد");
+  }
+
+  // aliases for older AdminPage names
+  static Future<void> pinAdvanced(
+    int adId, {
+    int days = 7,
+    int position = 1,
+  }) async {
+    return pinAdAdvanced(adId, days: days, position: position);
+  }
+
+  static Future<void> unpinAdvanced(int adId) async {
+    return unpinAdAdvanced(adId);
+  }
+
+  static Future<void> increaseAdCallCount(int adId) async {
+    final response = await http.post(
+      url("/admin/advanced/ads/$adId/call"),
+      headers: headers,
+    );
+
+    await ensureOk(response, "ثبت تماس آگهی انجام نشد");
+  }
+
+  static Future<void> increaseAdChatCount(int adId) async {
+    final response = await http.post(
+      url("/admin/advanced/ads/$adId/chat"),
+      headers: headers,
+    );
+
+    await ensureOk(response, "ثبت چت آگهی انجام نشد");
+  }
+
+  // ==================== ADMIN ADVANCED CHATS / MESSAGES ====================
+
+  static Future<List<dynamic>> getAdminAdvancedChats({
+    String q = "",
+    String chatSearchText = "",
+  }) async {
+    final search = chatSearchText.trim().isNotEmpty ? chatSearchText : q;
+
+    final response = await http.get(
+      url("/admin/advanced/chats").replace(
+        queryParameters: {
+          if (search.trim().isNotEmpty) "q": search.trim(),
+        },
+      ),
+      headers: headers,
+    );
+
+    final data = decode(response);
+
+    if (response.statusCode == 200) {
+      final chats = listFrom(data, "chats");
+      if (chats.isNotEmpty) return chats;
+      return listFrom(data, "messages");
+    }
+
+    throw Exception(errorMessage(data, "خطا در دریافت پیام‌های مدیریت"));
+  }
+
+  static Future<List<dynamic>> getAdminAdvancedMessages({
+    String q = "",
+    int? adId,
+    String user = "",
+  }) async {
+    if (adId == null && user.trim().isEmpty) {
+      return getAdminAdvancedChats(q: q);
+    }
+
+    final response = await http.get(
+      url("/admin/advanced/chats").replace(
+        queryParameters: {
+          if (q.trim().isNotEmpty) "q": q.trim(),
+          if (adId != null) "ad_id": adId.toString(),
+          if (user.trim().isNotEmpty) "user": user.trim(),
+        },
+      ),
+      headers: headers,
+    );
+
+    final data = decode(response);
+
+    if (response.statusCode == 200) {
+      final messages = listFrom(data, "messages");
+      if (messages.isNotEmpty) return messages;
+      return listFrom(data, "chats");
+    }
+
+    throw Exception(errorMessage(data, "خطا در دریافت پیام‌های مدیریت"));
+  }
+
+  static Future<void> deleteAdminMessage(int messageId) async {
+    final response = await http.patch(
+      url("/admin/advanced/chats/$messageId/delete"),
+      headers: headers,
+    );
+
+    await ensureOk(response, "حذف پیام انجام نشد");
+  }
+
+  static Future<void> restoreAdminMessage(int messageId) async {
+    final response = await http.patch(
+      url("/admin/advanced/chats/$messageId/restore"),
+      headers: headers,
+    );
+
+    await ensureOk(response, "برگرداندن پیام انجام نشد");
+  }
+
+  // ==================== ADMIN ADVANCED BLOCKED WORDS ====================
+
+  static Future<List<dynamic>> getBlockedWords() async {
+    final response = await http.get(
+      url("/admin/advanced/blocked-words"),
+      headers: headers,
+    );
+
+    final data = decode(response);
+
+    if (response.statusCode == 200) return listFrom(data, "words");
+
+    throw Exception(errorMessage(data, "خطا در دریافت کلمات ممنوعه"));
+  }
+
+  static Future<void> addBlockedWord({
+    required String word,
+    String type = "general",
+  }) async {
+    final response = await http.post(
+      url("/admin/advanced/blocked-words"),
+      headers: headers,
+      body: jsonEncode({
+        "word": word.trim(),
+        "type": type.trim(),
+      }),
+    );
+
+    await ensureOk(response, "افزودن کلمه ممنوعه انجام نشد");
+  }
+
+  static Future<void> deleteBlockedWord(int id) async {
+    final response = await http.delete(
+      url("/admin/advanced/blocked-words/$id"),
+      headers: headers,
+    );
+
+    await ensureOk(response, "حذف کلمه ممنوعه انجام نشد");
+  }
+
+  static Future<void> toggleBlockedWord(int id, bool isActive) async {
+    final response = await http.patch(
+      url("/admin/advanced/blocked-words/$id"),
+      headers: headers,
+      body: jsonEncode({"is_active": isActive}),
+    );
+
+    await ensureOk(response, "تغییر وضعیت کلمه ممنوعه انجام نشد");
+  }
+
+  // ==================== ADMIN ADVANCED DEVICES ====================
+
+  static Future<List<dynamic>> getAdminDevices() async {
+    final response = await http.get(
+      url("/admin/advanced/devices"),
+      headers: headers,
+    );
+
+    final data = decode(response);
+
+    if (response.statusCode == 200) return listFrom(data, "devices");
+
+    throw Exception(errorMessage(data, "خطا در دریافت دستگاه‌ها"));
   }
 
   // ==================== HEALTH ====================
@@ -1066,39 +1477,39 @@ class Api {
   }
 
   static Future<Map<String, dynamic>> me() async {
-  final response = await http.get(
-    url("/auth/me"),
-    headers: headers,
-  );
-
-  final data = decode(response);
-
-  if (response.statusCode == 200 && data is Map) {
-    return Map<String, dynamic>.from(data);
-  }
-
-  throw Exception(errorMessage(data, "خطا در دریافت اطلاعات کاربر"));
-}
-
-static Future<Map<String, String>> reverseGeocode(
-  double latitude,
-  double longitude,
-) async {
-  return {
-    "province": "",
-    "district": "",
-    "address": "موقعیت GPS ثبت شد",
-  };
-}
-
-static Future<void> logout() async {
-  try {
-    await http.post(
-      url("/auth/logout"),
+    final response = await http.get(
+      url("/auth/me"),
       headers: headers,
     );
-  } catch (_) {}
 
-  await Session.logout();
-}
+    final data = decode(response);
+
+    if (response.statusCode == 200 && data is Map) {
+      return Map<String, dynamic>.from(data);
+    }
+
+    throw Exception(errorMessage(data, "خطا در دریافت اطلاعات کاربر"));
+  }
+
+  static Future<Map<String, String>> reverseGeocode(
+    double latitude,
+    double longitude,
+  ) async {
+    return {
+      "province": "",
+      "district": "",
+      "address": "موقعیت GPS ثبت شد",
+    };
+  }
+
+  static Future<void> logout() async {
+    try {
+      await http.post(
+        url("/auth/logout"),
+        headers: headers,
+      );
+    } catch (_) {}
+
+    await Session.logout();
+  }
 }

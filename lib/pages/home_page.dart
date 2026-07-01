@@ -3,6 +3,7 @@ import 'package:geolocator/geolocator.dart';
 
 import '../core/session.dart';
 import '../core/api.dart';
+import '../core/lang.dart';
 import 'ad_detail_page.dart';
 import 'admin_page.dart';
 
@@ -21,14 +22,14 @@ class HomePageState extends State<HomePage> {
   final TextEditingController maxAreaController = TextEditingController();
 
   String searchText = '';
-String selectedMainCategory = 'همه';
-String selectedCondition = 'همه';
-String selectedDistance = 'همه';
-double selectedRadiusKm = 0; // <-- اینجا
-String selectedProvince = 'همه';
+  String selectedMainCategory = 'همه';
+  String selectedCondition = 'همه';
+  String selectedDistance = 'همه';
+  double selectedRadiusKm = 0;
+  String selectedProvince = 'همه';
 
-Position? myPosition;
-bool locationLoading = false;
+  Position? myPosition;
+  bool locationLoading = false;
 
   late Future<List<dynamic>> adsFuture;
 
@@ -39,57 +40,69 @@ bool locationLoading = false;
   static const Color textColor = Color(0xff19172B);
   static const Color greenColor = Color(0xff0FA958);
 
-  final List<String> mainCategories = const [
-    'همه',
-    'املاک',
-    'وسایل نقلیه',
-    'لوازم الکترونیکی',
-    'مربوط به خانه',
-    'خدمات',
-    'وسایل شخصی',
-    'سرگرمی و فراغت',
-    'لوازم کودک',
-    'برای کسب و کار',
-    'استخدام و کاریابی',
+  String tr(String key) => T.tr(key);
+
+  final List<Map<String, String>> mainCategories = const [
+    {'key': 'all', 'value': 'همه'},
+    {'key': 'cat_real_estate', 'value': 'املاک'},
+    {'key': 'cat_vehicles', 'value': 'وسایل نقلیه'},
+    {'key': 'cat_electronics', 'value': 'لوازم الکترونیکی'},
+    {'key': 'cat_home', 'value': 'مربوط به خانه'},
+    {'key': 'cat_services', 'value': 'خدمات'},
+    {'key': 'cat_personal', 'value': 'وسایل شخصی'},
+    {'key': 'cat_entertainment', 'value': 'سرگرمی و فراغت'},
+    {'key': 'cat_kids', 'value': 'لوازم کودک'},
+    {'key': 'cat_business', 'value': 'برای کسب و کار'},
+    {'key': 'cat_jobs', 'value': 'استخدام و کاریابی'},
+  ];
+  final List<Map<String, String>> provinces = const [
+    {'key': 'all', 'value': 'همه'},
+    {'key': 'province_badakhshan', 'value': 'بدخشان'},
+    {'key': 'province_badghis', 'value': 'بادغیس'},
+    {'key': 'province_baghlan', 'value': 'بغلان'},
+    {'key': 'province_balkh', 'value': 'بلخ'},
+    {'key': 'province_bamyan', 'value': 'بامیان'},
+    {'key': 'province_daykundi', 'value': 'دایکندی'},
+    {'key': 'province_farah', 'value': 'فراه'},
+    {'key': 'province_faryab', 'value': 'فاریاب'},
+    {'key': 'province_ghazni', 'value': 'غزنی'},
+    {'key': 'province_ghor', 'value': 'غور'},
+    {'key': 'province_helmand', 'value': 'هلمند'},
+    {'key': 'province_herat', 'value': 'هرات'},
+    {'key': 'province_jowzjan', 'value': 'جوزجان'},
+    {'key': 'province_kabul', 'value': 'کابل'},
+    {'key': 'province_kandahar', 'value': 'قندهار'},
+    {'key': 'province_kapisa', 'value': 'کاپیسا'},
+    {'key': 'province_khost', 'value': 'خوست'},
+    {'key': 'province_kunar', 'value': 'کنر'},
+    {'key': 'province_kunduz', 'value': 'کندز'},
+    {'key': 'province_laghman', 'value': 'لغمان'},
+    {'key': 'province_logar', 'value': 'لوگر'},
+    {'key': 'province_nangarhar', 'value': 'ننگرهار'},
+    {'key': 'province_nimruz', 'value': 'نیمروز'},
+    {'key': 'province_nuristan', 'value': 'نورستان'},
+    {'key': 'province_paktia', 'value': 'پکتیا'},
+    {'key': 'province_paktika', 'value': 'پکتیکا'},
+    {'key': 'province_panjshir', 'value': 'پنجشیر'},
+    {'key': 'province_parwan', 'value': 'پروان'},
+    {'key': 'province_samangan', 'value': 'سمنگان'},
+    {'key': 'province_sarpol', 'value': 'سرپل'},
+    {'key': 'province_takhar', 'value': 'تخار'},
+    {'key': 'province_urozgan', 'value': 'ارزگان'},
+    {'key': 'province_wardak', 'value': 'میدان وردک'},
+    {'key': 'province_zabul', 'value': 'زابل'},
   ];
 
-  final List<String> provinces = const [
-    'همه',
-    'بدخشان',
-    'بادغیس',
-    'بغلان',
-    'بلخ',
-    'بامیان',
-    'دایکندی',
-    'فراه',
-    'فاریاب',
-    'غزنی',
-    'غور',
-    'هلمند',
-    'هرات',
-    'جوزجان',
-    'کابل',
-    'قندهار',
-    'کاپیسا',
-    'خوست',
-    'کنر',
-    'کندز',
-    'لغمان',
-    'لوگر',
-    'ننگرهار',
-    'نیمروز',
-    'نورستان',
-    'پکتیا',
-    'پکتیکا',
-    'پنجشیر',
-    'پروان',
-    'سمنگان',
-    'سرپل',
-    'تخار',
-    'ارزگان',
-    'میدان وردک',
-    'زابل',
-  ];
+  String labelOf(List<Map<String, String>> items, String value) {
+    final found = items.where((e) => e['value'] == value).toList();
+    if (found.isEmpty) return value;
+    return tr(found.first['key'] ?? value);
+  }
+
+  String categoryLabel(String value) => labelOf(mainCategories, value);
+
+  String provinceLabel(String value) => labelOf(provinces, value);
+
   @override
   void initState() {
     super.initState();
@@ -135,7 +148,7 @@ bool locationLoading = false;
 
       if (!serviceEnabled) {
         if (showErrors) {
-          showMessage('لوکیشن گوشی خاموش است. لطفاً GPS را روشن کنید.');
+          showMessage(tr('phone_location_off'));
         }
 
         await Geolocator.openLocationSettings();
@@ -150,14 +163,14 @@ bool locationLoading = false;
 
       if (permission == LocationPermission.denied) {
         if (showErrors) {
-          showMessage('اجازه دسترسی به لوکیشن داده نشد.');
+          showMessage(tr('location_permission_denied'));
         }
         return false;
       }
 
       if (permission == LocationPermission.deniedForever) {
         if (showErrors) {
-          showMessage('دسترسی لوکیشن برای برنامه بسته شده است. از تنظیمات فعالش کنید.');
+          showMessage(tr('location_permission_blocked'));
         }
 
         await Geolocator.openAppSettings();
@@ -177,7 +190,7 @@ bool locationLoading = false;
       return true;
     } catch (_) {
       if (showErrors) {
-        showMessage('لوکیشن دریافت نشد. دوباره تلاش کنید.');
+        showMessage(tr('location_failed'));
       }
       return false;
     } finally {
@@ -204,6 +217,7 @@ bool locationLoading = false;
 
     return text == 'true' || text == '1' || text == 'yes';
   }
+
   String normalizeNumberText(String text) {
     return text
         .replaceAll('۰', '0')
@@ -238,12 +252,12 @@ bool locationLoading = false;
     final raw = normalizeNumberText(price.trim());
 
     if (raw.isEmpty || raw == '0') {
-      return 'قیمت توافقی';
+      return tr('negotiable_price');
     }
 
     final number = int.tryParse(raw.replaceAll(',', ''));
     if (number == null || number == 0) {
-      return 'قیمت توافقی';
+      return tr('negotiable_price');
     }
 
     final formatted = number.toString().replaceAllMapped(
@@ -251,9 +265,8 @@ bool locationLoading = false;
           (match) => ',',
         );
 
-    return '$formatted افغانی';
+    return '$formatted ${tr('afghani')}';
   }
-
   String priceText(String price) {
     return formatPrice(price);
   }
@@ -287,15 +300,16 @@ bool locationLoading = false;
     if (km == null) return '';
 
     if (km < 1) {
-      return '${(km * 1000).round()} متر دورتر';
+      return '${(km * 1000).round()} ${tr('meter_away')}';
     }
 
-    return '${km.toStringAsFixed(1)} کیلومتر دورتر';
+    return '${km.toStringAsFixed(1)} ${tr('km_away')}';
   }
 
   int selectedDistanceKm() {
-  return selectedRadiusKm.round();
-}
+    return selectedRadiusKm.round();
+  }
+
   String getCondition(dynamic ad) {
     final direct = textOf(ad, 'condition');
     if (direct.isNotEmpty) return direct;
@@ -401,13 +415,13 @@ bool locationLoading = false;
     final city = textOf(ad, 'city');
 
     if (province.isNotEmpty && district.isNotEmpty) {
-      return '$province - $district';
+      return '${provinceLabel(province)} - $district';
     }
 
-    if (province.isNotEmpty) return province;
+    if (province.isNotEmpty) return provinceLabel(province);
     if (city.isNotEmpty) return city;
 
-    return 'موقعیت نامشخص';
+    return tr('unknown_location');
   }
 
   String getMainCategory(dynamic ad) {
@@ -436,8 +450,9 @@ bool locationLoading = false;
     final categoryName = textOf(ad, 'category_name');
     if (categoryName.isNotEmpty) return categoryName;
 
-    return 'دسته‌بندی';
+    return tr('category');
   }
+
   List<dynamic> filterAds(List<dynamic> ads) {
     return ads.where((ad) {
       final q = searchText.trim().toLowerCase();
@@ -499,29 +514,28 @@ bool locationLoading = false;
   }
 
   bool get hasFilter {
-  return selectedCondition != 'همه' ||
-      selectedRadiusKm > 0 ||
-      selectedProvince != 'همه' ||
-      minPriceController.text.isNotEmpty ||
-      maxPriceController.text.isNotEmpty ||
-      minAreaController.text.isNotEmpty ||
-      maxAreaController.text.isNotEmpty;
-}
+    return selectedCondition != 'همه' ||
+        selectedRadiusKm > 0 ||
+        selectedProvince != 'همه' ||
+        minPriceController.text.isNotEmpty ||
+        maxPriceController.text.isNotEmpty ||
+        minAreaController.text.isNotEmpty ||
+        maxAreaController.text.isNotEmpty;
+  }
 
- void clearFilters() {
-  setState(() {
-    selectedCondition = 'همه';
-    selectedDistance = 'همه';
-    selectedRadiusKm = 0;
-    selectedProvince = 'همه';
+  void clearFilters() {
+    setState(() {
+      selectedCondition = 'همه';
+      selectedDistance = 'همه';
+      selectedRadiusKm = 0;
+      selectedProvince = 'همه';
 
-    minPriceController.clear();
-    maxPriceController.clear();
-    minAreaController.clear();
-    maxAreaController.clear();
-  });
-}
-
+      minPriceController.clear();
+      maxPriceController.clear();
+      minAreaController.clear();
+      maxAreaController.clear();
+    });
+  }
   InputDecoration filterInputDecoration(String label, IconData icon) {
     return InputDecoration(
       labelText: label,
@@ -557,6 +571,7 @@ bool locationLoading = false;
       ],
     );
   }
+
   void showProvinceSheet() {
     showModalBottomSheet(
       context: context,
@@ -582,9 +597,9 @@ bool locationLoading = false;
                   ),
                 ),
                 const SizedBox(height: 18),
-                const Text(
-                  'انتخاب ولایت',
-                  style: TextStyle(
+                Text(
+                  tr('select_province'),
+                  style: const TextStyle(
                     fontSize: 21,
                     fontWeight: FontWeight.w900,
                     color: textColor,
@@ -592,7 +607,7 @@ bool locationLoading = false;
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  '۳۴ ولایت افغانستان',
+                  tr('afghanistan_34_provinces'),
                   style: TextStyle(
                     color: Colors.grey.shade600,
                     fontWeight: FontWeight.bold,
@@ -604,7 +619,8 @@ bool locationLoading = false;
                     itemCount: provinces.length,
                     itemBuilder: (context, index) {
                       final item = provinces[index];
-                      final selected = selectedProvince == item;
+                      final value = item['value'] ?? '';
+                      final selected = selectedProvince == value;
 
                       return Container(
                         margin: const EdgeInsets.only(bottom: 8),
@@ -622,13 +638,15 @@ bool locationLoading = false;
                         child: ListTile(
                           onTap: () {
                             setState(() {
-                              selectedProvince = item;
+                              selectedProvince = value;
                             });
 
                             Navigator.pop(context);
                           },
                           title: Text(
-                            item == 'همه' ? 'همه ولایت‌ها' : item,
+                            value == 'همه'
+                                ? tr('all_provinces')
+                                : tr(item['key'] ?? ''),
                             style: TextStyle(
                               fontWeight:
                                   selected ? FontWeight.w900 : FontWeight.bold,
@@ -657,81 +675,89 @@ bool locationLoading = false;
     );
   }
 
- void showDistanceSheet() {
-  double tempRadius = selectedRadiusKm;
+  void showDistanceSheet() {
+    double tempRadius = selectedRadiusKm;
 
-  showModalBottomSheet(
-    context: context,
-    backgroundColor: Colors.transparent,
-    builder: (_) {
-      return StatefulBuilder(
-        builder: (context, setSheetState) {
-          final isAll = tempRadius == 0;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            final isAll = tempRadius == 0;
 
-          return Directionality(
-            textDirection: TextDirection.rtl,
-            child: Container(
-              padding: const EdgeInsets.all(18),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'فیلتر فاصله',
-                    style: TextStyle(fontSize: 21, fontWeight: FontWeight.w900),
-                  ),
-                  const SizedBox(height: 14),
-                  Text(
-                    isAll ? 'همه فاصله‌ها' : 'تا ${tempRadius.round()} کیلومتر',
-                    style: const TextStyle(
-                      color: primaryColor,
-                      fontWeight: FontWeight.bold,
+            return Directionality(
+              textDirection: TextDirection.rtl,
+              child: Container(
+                padding: const EdgeInsets.all(18),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      tr('distance_filter'),
+                      style: const TextStyle(
+                        fontSize: 21,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
-                  ),
-                  Slider(
-                    value: tempRadius,
-                    min: 0,
-                    max: 300,
-                    divisions: 300,
-                    label: isAll ? 'همه' : '${tempRadius.round()} کیلومتر',
-                    onChanged: (value) {
-                      setSheetState(() => tempRadius = value);
-                    },
-                  ),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      icon: const Icon(Icons.check),
-                      label: const Text('اعمال فاصله'),
-                      onPressed: () async {
-                        if (tempRadius > 0) {
-                          final ok = await loadMyLocation(showErrors: true);
-                          if (!ok) return;
-                        }
-
-                        setState(() {
-                          selectedRadiusKm = tempRadius;
-                          selectedDistance = tempRadius == 0
-                              ? 'همه'
-                              : '${tempRadius.round()} کیلومتر';
-                        });
-
-                        if (mounted) Navigator.pop(context);
+                    const SizedBox(height: 14),
+                    Text(
+                      isAll
+                          ? tr('all_distances')
+                          : '${tr('up_to')} ${tempRadius.round()} ${tr('kilometer')}',
+                      style: const TextStyle(
+                        color: primaryColor,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Slider(
+                      value: tempRadius,
+                      min: 0,
+                      max: 300,
+                      divisions: 300,
+                      label: isAll
+                          ? tr('all')
+                          : '${tempRadius.round()} ${tr('kilometer')}',
+                      onChanged: (value) {
+                        setSheetState(() => tempRadius = value);
                       },
                     ),
-                  ),
-                ],
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        icon: const Icon(Icons.check),
+                        label: Text(tr('apply_distance')),
+                        onPressed: () async {
+                          if (tempRadius > 0) {
+                            final ok = await loadMyLocation(showErrors: true);
+                            if (!ok) return;
+                          }
+
+                          setState(() {
+                            selectedRadiusKm = tempRadius;
+                            selectedDistance = tempRadius == 0
+                                ? 'همه'
+                                : '${tempRadius.round()} ${tr('kilometer')}';
+                          });
+
+                          if (mounted) Navigator.pop(context);
+                        },
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          );
-        },
-      );
-    },
-  );
-}
+            );
+          },
+        );
+      },
+    );
+  }
+
   void showFilterSheet() {
     showModalBottomSheet(
       context: context,
@@ -791,17 +817,17 @@ bool locationLoading = false;
                               ),
                             ],
                           ),
-                          child: const Row(
+                          child: Row(
                             children: [
-                              CircleAvatar(
+                              const CircleAvatar(
                                 backgroundColor: Colors.white,
                                 child: Icon(Icons.tune, color: primaryColor),
                               ),
-                              SizedBox(width: 12),
+                              const SizedBox(width: 12),
                               Expanded(
                                 child: Text(
-                                  'فیلتر پیشرفته آگهی‌ها',
-                                  style: TextStyle(
+                                  tr('advanced_filter_ads'),
+                                  style: const TextStyle(
                                     fontSize: 20,
                                     fontWeight: FontWeight.w900,
                                     color: Colors.white,
@@ -813,9 +839,9 @@ bool locationLoading = false;
                         ),
                         const SizedBox(height: 22),
 
-                        const Text(
-                          'ولایت',
-                          style: TextStyle(
+                        Text(
+                          tr('province'),
+                          style: const TextStyle(
                             fontWeight: FontWeight.w900,
                             fontSize: 15,
                             color: textColor,
@@ -846,8 +872,8 @@ bool locationLoading = false;
                                 Expanded(
                                   child: Text(
                                     selectedProvince == 'همه'
-                                        ? 'همه ولایت‌ها'
-                                        : selectedProvince,
+                                        ? tr('all_provinces')
+                                        : provinceLabel(selectedProvince),
                                     style: const TextStyle(
                                       fontWeight: FontWeight.w900,
                                       color: textColor,
@@ -862,9 +888,9 @@ bool locationLoading = false;
 
                         const SizedBox(height: 20),
 
-                        const Text(
-                          'وضعیت کالا',
-                          style: TextStyle(
+                        Text(
+                          tr('item_condition'),
+                          style: const TextStyle(
                             fontWeight: FontWeight.w900,
                             fontSize: 15,
                             color: textColor,
@@ -873,8 +899,13 @@ bool locationLoading = false;
                         const SizedBox(height: 10),
 
                         Row(
-                          children: ['همه', 'نو', 'کارکرده'].map((item) {
-                            final selected = selectedCondition == item;
+                          children: [
+                            {'key': 'all', 'value': 'همه'},
+                            {'key': 'new_item', 'value': 'نو'},
+                            {'key': 'used_item', 'value': 'کارکرده'},
+                          ].map((item) {
+                            final value = item['value'] ?? '';
+                            final selected = selectedCondition == value;
 
                             return Expanded(
                               child: Padding(
@@ -883,11 +914,11 @@ bool locationLoading = false;
                                   borderRadius: BorderRadius.circular(18),
                                   onTap: () {
                                     setSheetState(() {
-                                      selectedCondition = item;
+                                      selectedCondition = value;
                                     });
 
                                     setState(() {
-                                      selectedCondition = item;
+                                      selectedCondition = value;
                                     });
                                   },
                                   child: AnimatedContainer(
@@ -906,7 +937,7 @@ bool locationLoading = false;
                                       ),
                                     ),
                                     child: Text(
-                                      item,
+                                      tr(item['key'] ?? ''),
                                       style: TextStyle(
                                         color: selected
                                             ? Colors.white
@@ -930,7 +961,7 @@ bool locationLoading = false;
                                 controller: minPriceController,
                                 keyboardType: TextInputType.number,
                                 decoration: filterInputDecoration(
-                                  'حداقل قیمت',
+                                  tr('min_price'),
                                   Icons.south,
                                 ),
                               ),
@@ -941,7 +972,7 @@ bool locationLoading = false;
                                 controller: maxPriceController,
                                 keyboardType: TextInputType.number,
                                 decoration: filterInputDecoration(
-                                  'حداکثر قیمت',
+                                  tr('max_price'),
                                   Icons.north,
                                 ),
                               ),
@@ -958,7 +989,7 @@ bool locationLoading = false;
                                 controller: minAreaController,
                                 keyboardType: TextInputType.number,
                                 decoration: filterInputDecoration(
-                                  'حداقل متراژ',
+                                  tr('min_area'),
                                   Icons.square_foot,
                                 ),
                               ),
@@ -969,7 +1000,7 @@ bool locationLoading = false;
                                 controller: maxAreaController,
                                 keyboardType: TextInputType.number,
                                 decoration: filterInputDecoration(
-                                  'حداکثر متراژ',
+                                  tr('max_area'),
                                   Icons.fullscreen,
                                 ),
                               ),
@@ -988,7 +1019,7 @@ bool locationLoading = false;
                                   Navigator.pop(context);
                                 },
                                 icon: const Icon(Icons.refresh),
-                                label: const Text('پاک کردن'),
+                                label: Text(tr('clear')),
                               ),
                             ),
                             const SizedBox(width: 10),
@@ -999,7 +1030,7 @@ bool locationLoading = false;
                                   Navigator.pop(context);
                                 },
                                 icon: const Icon(Icons.check),
-                                label: const Text('اعمال فیلتر'),
+                                label: Text(tr('apply_filter')),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: primaryColor,
                                   foregroundColor: Colors.white,
@@ -1131,9 +1162,9 @@ bool locationLoading = false;
                     ),
                   ],
                 ),
-                child: const Text(
-                  'مدیر',
-                  style: TextStyle(
+                child: Text(
+                  tr('admin'),
+                  style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
                   ),
@@ -1141,21 +1172,21 @@ bool locationLoading = false;
               ),
             ),
           const Spacer(),
-          const Column(
+          Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
-                'افغان بازار',
-                style: TextStyle(
+                tr('app_name'),
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 34,
                   fontWeight: FontWeight.w900,
                 ),
               ),
-              SizedBox(height: 7),
+              const SizedBox(height: 7),
               Text(
-                'خرید و فروش آسان در افغانستان',
-                style: TextStyle(
+                tr('app_subtitle'),
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 13,
                   fontWeight: FontWeight.bold,
@@ -1215,7 +1246,9 @@ bool locationLoading = false;
                     ),
                   const SizedBox(width: 5),
                   Text(
-                    selectedDistance == 'همه' ? 'کیلومتر' : selectedDistance,
+                    selectedDistance == 'همه'
+                        ? tr('kilometer')
+                        : selectedDistance,
                     style: TextStyle(
                       color:
                           selectedDistance == 'همه' ? textColor : Colors.white,
@@ -1256,7 +1289,9 @@ bool locationLoading = false;
                   ),
                   const SizedBox(width: 5),
                   Text(
-                    selectedProvince == 'همه' ? 'ولایت' : selectedProvince,
+                    selectedProvince == 'همه'
+                        ? tr('province')
+                        : provinceLabel(selectedProvince),
                     style: TextStyle(
                       color:
                           selectedProvince == 'همه' ? textColor : Colors.white,
@@ -1289,11 +1324,11 @@ bool locationLoading = false;
                 controller: searchController,
                 textDirection: TextDirection.rtl,
                 textAlign: TextAlign.right,
-                decoration: const InputDecoration(
-                  hintText: 'جستجو؛ مثلاً هرات، موتر، خانه',
-                  hintStyle: TextStyle(color: Colors.grey),
+                decoration: InputDecoration(
+                  hintText: tr('search_hint_home'),
+                  hintStyle: const TextStyle(color: Colors.grey),
                   border: InputBorder.none,
-                  prefixIcon: Icon(Icons.search, color: primaryColor),
+                  prefixIcon: const Icon(Icons.search, color: primaryColor),
                 ),
                 onChanged: (value) {
                   setState(() {
@@ -1307,6 +1342,7 @@ bool locationLoading = false;
       ),
     );
   }
+
   Widget buildFilterButton() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(18, 0, 18, 8),
@@ -1338,7 +1374,7 @@ bool locationLoading = false;
               Icon(Icons.tune, color: hasFilter ? Colors.white : secondColor),
               const SizedBox(width: 8),
               Text(
-                hasFilter ? 'فیلتر فعال است' : 'فیلتر پیشرفته آگهی‌ها',
+                hasFilter ? tr('filter_active') : tr('advanced_filter_ads'),
                 style: TextStyle(
                   color: hasFilter ? Colors.white : textColor,
                   fontWeight: FontWeight.w900,
@@ -1365,7 +1401,8 @@ bool locationLoading = false;
         padding: const EdgeInsets.symmetric(horizontal: 14),
         itemCount: mainCategories.length,
         itemBuilder: (context, index) {
-          final category = mainCategories[index];
+          final item = mainCategories[index];
+          final category = item['value'] ?? '';
           final selected = selectedMainCategory == category;
           final color = categoryColor(category);
 
@@ -1407,7 +1444,7 @@ bool locationLoading = false;
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      category,
+                      tr(item['key'] ?? ''),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -1523,7 +1560,7 @@ bool locationLoading = false;
                           children: [
                             Expanded(
                               child: Text(
-                                title.isEmpty ? 'بدون عنوان' : title,
+                                title.isEmpty ? tr('no_title') : title,
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                                 textAlign: TextAlign.right,
@@ -1607,6 +1644,7 @@ bool locationLoading = false;
       ),
     );
   }
+
   Widget buildEmptyState() {
     return Center(
       child: Container(
@@ -1623,7 +1661,7 @@ bool locationLoading = false;
             ),
             const SizedBox(height: 12),
             Text(
-              'آگهی پیدا نشد',
+              tr('no_ads_found'),
               style: TextStyle(
                 color: Colors.grey.shade700,
                 fontSize: 18,
@@ -1693,7 +1731,7 @@ bool locationLoading = false;
                         child: Padding(
                           padding: const EdgeInsets.all(20),
                           child: Text(
-                            'خطا در دریافت آگهی‌ها\n${snapshot.error}',
+                            '${tr('ads_load_error')}\n${snapshot.error}',
                             textAlign: TextAlign.center,
                             style: const TextStyle(
                               fontWeight: FontWeight.bold,

@@ -16,7 +16,10 @@ class _AdminPageState extends State<AdminPage> {
 
   String userSearchText = "";
   String adSearchText = "";
+  String chatSearchText = "";
   String reportStatus = "all";
+  String adStatusFilter = "all";
+  String userStatusFilter = "all";
 
   int? selectedUserAdsFilterId;
   String selectedUserAdsFilterName = "";
@@ -25,13 +28,18 @@ class _AdminPageState extends State<AdminPage> {
   late Future<List<dynamic>> usersFuture;
   late Future<List<dynamic>> adsFuture;
   late Future<List<dynamic>> reportsFuture;
+  late Future<List<dynamic>> chatsFuture;
   late Future<List<dynamic>> notificationsFuture;
   late Future<List<dynamic>> paymentsFuture;
   late Future<Map<String, dynamic>> settingsFuture;
   late Future<List<dynamic>> auditLogsFuture;
+  late Future<List<dynamic>> blockedWordsFuture;
+  late Future<List<dynamic>> devicesFuture;
+  late Future<List<dynamic>> onlineUsersFuture;
 
   final userSearchController = TextEditingController();
   final adSearchController = TextEditingController();
+  final chatSearchController = TextEditingController();
 
   final notificationTitleController = TextEditingController();
   final notificationBodyController = TextEditingController();
@@ -44,6 +52,9 @@ class _AdminPageState extends State<AdminPage> {
   final settingKeyController = TextEditingController();
   final settingValueController = TextEditingController();
 
+  final blockedWordController = TextEditingController();
+  final blockedWordTypeController = TextEditingController(text: "general");
+
   @override
   void initState() {
     super.initState();
@@ -51,14 +62,18 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   void reloadAll() {
-    statsFuture = Api.getAdminStats();
+    statsFuture = Api.getAdminAdvancedStats();
     usersFuture = Api.getAdminUsers();
     adsFuture = Api.getAds();
     reportsFuture = Api.getAdminReports(status: reportStatus);
+    chatsFuture = Api.getAdminAdvancedChats(q: chatSearchText);
     notificationsFuture = Api.getAdminNotifications();
     paymentsFuture = Api.getAdminPayments();
     settingsFuture = Api.getAdminSettings();
     auditLogsFuture = Api.getAdminAuditLogs();
+    blockedWordsFuture = Api.getBlockedWords();
+    devicesFuture = Api.getAdminDevices();
+    onlineUsersFuture = Api.getAdminOnlineUsers();
   }
 
   Future<void> reload() async {
@@ -71,18 +86,17 @@ class _AdminPageState extends State<AdminPage> {
   void dispose() {
     userSearchController.dispose();
     adSearchController.dispose();
-
+    chatSearchController.dispose();
     notificationTitleController.dispose();
     notificationBodyController.dispose();
-
     paymentUserIdController.dispose();
     paymentAdIdController.dispose();
     paymentAmountController.dispose();
     paymentNoteController.dispose();
-
     settingKeyController.dispose();
     settingValueController.dispose();
-
+    blockedWordController.dispose();
+    blockedWordTypeController.dispose();
     super.dispose();
   }
 
@@ -104,13 +118,48 @@ class _AdminPageState extends State<AdminPage> {
     return e.toString().replaceAll("Exception:", "").trim();
   }
 
+  bool isMuted(dynamic user) {
+    final mutedUntil = textOf(user, "muted_until");
+    if (mutedUntil.isEmpty || mutedUntil == "null") return false;
+    final dt = DateTime.tryParse(mutedUntil);
+    if (dt == null) return true;
+    return dt.toLocal().isAfter(DateTime.now());
+  }
+
   Color statusColor(String status) {
-    if (status == "pending") return Colors.orange;
-    if (status == "reviewed") return Colors.green;
-    if (status == "dismissed") return Colors.red;
-    if (status == "paid") return Colors.green;
-    if (status == "failed") return Colors.red;
+    final s = status.toLowerCase();
+    if (s == "pending") return Colors.orange;
+    if (s == "approved") return Colors.green;
+    if (s == "reviewed") return Colors.green;
+    if (s == "rejected") return Colors.red;
+    if (s == "dismissed") return Colors.red;
+    if (s == "paid") return Colors.green;
+    if (s == "failed") return Colors.red;
+    if (s == "hidden") return Colors.pink;
     return Colors.grey;
+  }
+
+  String statusFa(String status) {
+    switch (status.toLowerCase()) {
+      case "pending":
+        return "در انتظار";
+      case "approved":
+        return "تأیید شده";
+      case "reviewed":
+        return "بررسی شده";
+      case "rejected":
+        return "رد شده";
+      case "dismissed":
+        return "رد گزارش";
+      case "paid":
+        return "پرداخت شده";
+      case "failed":
+        return "ناموفق";
+      case "all":
+        return "همه";
+      default:
+        return status.isEmpty ? "نامشخص" : status;
+    }
   }
 
   dynamic statValue(Map<String, dynamic> stats, List<String> keys) {
@@ -199,6 +248,152 @@ class _AdminPageState extends State<AdminPage> {
 
     return ok == true;
   }
+
+  Future<String?> askText({
+    required String title,
+    required String label,
+    String initial = "",
+    int maxLines = 1,
+  }) async {
+    final controller = TextEditingController(text: initial);
+
+    final value = await showDialog<String>(
+      context: context,
+      builder: (_) {
+        return Directionality(
+          textDirection: TextDirection.rtl,
+          child: AlertDialog(
+            title: Text(title),
+            content: TextField(
+              controller: controller,
+              maxLines: maxLines,
+              decoration: InputDecoration(
+                labelText: label,
+                border: const OutlineInputBorder(),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("لغو"),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, controller.text.trim()),
+                child: const Text("ثبت"),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    controller.dispose();
+    return value;
+  }
+
+  Future<Map<String, int>?> askPinOptions() async {
+    final daysController = TextEditingController(text: "7");
+    final positionController = TextEditingController(text: "1");
+
+    final value = await showDialog<Map<String, int>>(
+      context: context,
+      builder: (_) {
+        return Directionality(
+          textDirection: TextDirection.rtl,
+          child: AlertDialog(
+            title: const Text("پن پیشرفته آگهی"),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: positionController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: "جایگاه پن؛ مثلاً 1 تا 20",
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: daysController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: "مدت پن به روز",
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("لغو"),
+              ),
+              FilledButton(
+                onPressed: () {
+                  final position =
+                      int.tryParse(positionController.text.trim()) ?? 1;
+                  final days = int.tryParse(daysController.text.trim()) ?? 7;
+                  Navigator.pop(context, {
+                    "position": position,
+                    "days": days,
+                  });
+                },
+                child: const Text("پن کن"),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    daysController.dispose();
+    positionController.dispose();
+    return value;
+  }
+
+  Future<int?> askMuteDays() async {
+    final controller = TextEditingController(text: "1");
+
+    final value = await showDialog<int>(
+      context: context,
+      builder: (_) {
+        return Directionality(
+          textDirection: TextDirection.rtl,
+          child: AlertDialog(
+            title: const Text("سکوت کاربر"),
+            content: TextField(
+              controller: controller,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: "مدت سکوت به روز",
+                border: OutlineInputBorder(),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("لغو"),
+              ),
+              FilledButton(
+                onPressed: () {
+                  Navigator.pop(
+                    context,
+                    int.tryParse(controller.text.trim()) ?? 1,
+                  );
+                },
+                child: const Text("اعمال سکوت"),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    controller.dispose();
+    return value;
+  }
+
   Future<void> runAction(
     Future<void> Function() action,
     String successMessage, {
@@ -305,10 +500,13 @@ class _AdminPageState extends State<AdminPage> {
           tabButton(1, Icons.people, "کاربران"),
           tabButton(2, Icons.campaign, "آگهی‌ها"),
           tabButton(3, Icons.report, "گزارش‌ها"),
-          tabButton(4, Icons.notifications, "اعلان‌ها"),
-          tabButton(5, Icons.payment, "پرداخت‌ها"),
-          tabButton(6, Icons.settings, "تنظیمات"),
-          tabButton(7, Icons.history, "لاگ‌ها"),
+          tabButton(4, Icons.chat, "پیام‌ها"),
+          tabButton(5, Icons.notifications, "اعلان‌ها"),
+          tabButton(6, Icons.payment, "پرداخت‌ها"),
+          tabButton(7, Icons.block, "کلمات ممنوعه"),
+          tabButton(8, Icons.devices, "دستگاه‌ها"),
+          tabButton(9, Icons.settings, "تنظیمات"),
+          tabButton(10, Icons.history, "لاگ‌ها"),
         ],
       ),
     );
@@ -319,10 +517,13 @@ class _AdminPageState extends State<AdminPage> {
     if (selectedTab == 1) return buildUsers();
     if (selectedTab == 2) return buildAds();
     if (selectedTab == 3) return buildReports();
-    if (selectedTab == 4) return buildNotifications();
-    if (selectedTab == 5) return buildPayments();
-    if (selectedTab == 6) return buildSettings();
-    if (selectedTab == 7) return buildAuditLogs();
+    if (selectedTab == 4) return buildChats();
+    if (selectedTab == 5) return buildNotifications();
+    if (selectedTab == 6) return buildPayments();
+    if (selectedTab == 7) return buildBlockedWords();
+    if (selectedTab == 8) return buildDevices();
+    if (selectedTab == 9) return buildSettings();
+    if (selectedTab == 10) return buildAuditLogs();
 
     return const Center(child: Text("بخش نامعتبر"));
   }
@@ -417,45 +618,63 @@ class _AdminPageState extends State<AdminPage> {
                 color: Colors.blue,
               ),
               dashboardRow(
+                title: "کاربران آنلاین",
+                value: statValue(stats, ["online_users", "online_count"]),
+                icon: Icons.online_prediction,
+                color: Colors.green,
+              ),
+              dashboardRow(
+                title: "کاربران مسدود",
+                value: statValue(stats, ["banned_users", "banned_count"]),
+                icon: Icons.block,
+                color: Colors.red,
+              ),
+              dashboardRow(
+                title: "کاربران ویژه",
+                value: statValue(stats, ["premium_users", "premium_users_count"]),
+                icon: Icons.workspace_premium,
+                color: Colors.teal,
+              ),
+              dashboardRow(
                 title: "آگهی‌ها",
                 value: statValue(stats, ["ads", "ads_count", "total_ads"]),
                 icon: Icons.campaign,
                 color: Colors.green,
               ),
               dashboardRow(
-                title: "پیام‌ها",
-                value: statValue(stats, ["messages", "messages_count", "total_messages"]),
-                icon: Icons.chat,
+                title: "آگهی‌های منتظر بررسی",
+                value: statValue(stats, ["pending_ads", "pending_count"]),
+                icon: Icons.pending_actions,
                 color: Colors.orange,
               ),
               dashboardRow(
-                title: "گزارش‌ها",
-                value: statValue(stats, ["reports", "reports_count", "total_reports"]),
-                icon: Icons.report,
-                color: Colors.deepOrange,
+                title: "آگهی‌های رد شده",
+                value: statValue(stats, ["rejected_ads", "rejected_count"]),
+                icon: Icons.cancel,
+                color: Colors.redAccent,
               ),
               dashboardRow(
                 title: "آگهی‌های مخفی",
-                value: statValue(stats, ["hidden_ads", "hidden", "hidden_count"]),
+                value: statValue(stats, ["hidden_ads", "hidden_count"]),
                 icon: Icons.visibility_off,
                 color: Colors.pink,
               ),
               dashboardRow(
                 title: "آگهی‌های ویژه",
-                value: statValue(stats, ["featured_ads", "featured", "featured_count"]),
+                value: statValue(stats, ["featured_ads", "featured_count"]),
                 icon: Icons.star,
                 color: Colors.deepPurple,
               ),
               dashboardRow(
-                title: "کاربران ویژه",
-                value: statValue(stats, ["premium_users", "premium_users_count", "premium_count"]),
-                icon: Icons.workspace_premium,
-                color: Colors.teal,
+                title: "گزارش‌های منتظر",
+                value: statValue(stats, ["pending_reports", "reports", "total_reports"]),
+                icon: Icons.report,
+                color: Colors.deepOrange,
               ),
               dashboardRow(
-                title: "پرداخت‌ها",
-                value: statValue(stats, ["payments", "payments_count", "total_payments"]),
-                icon: Icons.payment,
+                title: "درآمد کل",
+                value: "${statValue(stats, ["total_income", "income"])} AFN",
+                icon: Icons.payments,
                 color: Colors.indigo,
               ),
             ],
@@ -464,12 +683,25 @@ class _AdminPageState extends State<AdminPage> {
       ),
     );
   }
+
   List<dynamic> filterUsers(List<dynamic> users) {
     final q = userSearchText.trim().toLowerCase();
 
-    if (q.isEmpty) return users;
-
     return users.where((user) {
+      if (user is! Map) return false;
+
+      final banned = boolOf(user, "is_banned") || boolOf(user, "banned");
+      final verified = boolOf(user, "is_verified");
+      final premium = boolOf(user, "is_premium");
+      final muted = isMuted(user);
+
+      if (userStatusFilter == "banned" && !banned) return false;
+      if (userStatusFilter == "verified" && !verified) return false;
+      if (userStatusFilter == "premium" && !premium) return false;
+      if (userStatusFilter == "muted" && !muted) return false;
+
+      if (q.isEmpty) return true;
+
       final text = [
         textOf(user, "id"),
         textOf(user, "first_name"),
@@ -538,26 +770,56 @@ class _AdminPageState extends State<AdminPage> {
             itemCount: users.length + 1,
             itemBuilder: (context, index) {
               if (index == 0) {
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: TextField(
-                    controller: userSearchController,
-                    textDirection: TextDirection.rtl,
-                    decoration: InputDecoration(
-                      hintText: "جستجو با نام، شماره، ایمیل یا شناسه",
-                      prefixIcon: const Icon(Icons.search),
-                      filled: true,
-                      fillColor: Colors.white,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
+                return Column(
+                  children: [
+                    TextField(
+                      controller: userSearchController,
+                      textDirection: TextDirection.rtl,
+                      decoration: InputDecoration(
+                        hintText: "جستجو با نام، شماره، ایمیل یا شناسه",
+                        prefixIcon: const Icon(Icons.search),
+                        filled: true,
+                        fillColor: Colors.white,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
                       ),
+                      onChanged: (value) {
+                        setState(() {
+                          userSearchText = value;
+                        });
+                      },
                     ),
-                    onChanged: (value) {
-                      setState(() {
-                        userSearchText = value;
-                      });
-                    },
-                  ),
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<String>(
+                      value: userStatusFilter,
+                      decoration: InputDecoration(
+                        labelText: "فیلتر کاربر",
+                        filled: true,
+                        fillColor: Colors.white,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: "all", child: Text("همه")),
+                        DropdownMenuItem(value: "banned", child: Text("مسدود")),
+                        DropdownMenuItem(value: "verified", child: Text("تأیید شده")),
+                        DropdownMenuItem(value: "premium", child: Text("پریمیوم")),
+                        DropdownMenuItem(value: "muted", child: Text("سکوت زده")),
+                      ],
+                      onChanged: (value) {
+                        if (value == null) return;
+                        setState(() => userStatusFilter = value);
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    if (users.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 60),
+                        child: Center(child: Text("کاربری پیدا نشد")),
+                      ),
+                  ],
                 );
               }
 
@@ -577,10 +839,15 @@ class _AdminPageState extends State<AdminPage> {
     final phone = textOf(user, "phone");
     final email = textOf(user, "email");
     final role = textOf(user, "role");
+    final city = textOf(user, "city");
+    final lastSeen = textOf(user, "last_seen");
+    final mutedUntil = textOf(user, "muted_until");
+
     final isBanned = boolOf(user, "is_banned") || boolOf(user, "banned");
     final isVerified = boolOf(user, "is_verified");
     final isBlue = boolOf(user, "is_blue_verified");
     final isPremium = boolOf(user, "is_premium");
+    final muted = isMuted(user);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
@@ -627,16 +894,11 @@ class _AdminPageState extends State<AdminPage> {
                           ],
                         ),
                         const SizedBox(height: 4),
-                        if (phone.isNotEmpty)
-                          Text(
-                            "شماره: $phone",
-                            textAlign: TextAlign.right,
-                          ),
-                        if (email.isNotEmpty)
-                          Text(
-                            "ایمیل: $email",
-                            textAlign: TextAlign.right,
-                          ),
+                        if (phone.isNotEmpty) Text("شماره: $phone"),
+                        if (email.isNotEmpty) Text("ایمیل: $email"),
+                        if (city.isNotEmpty) Text("شهر: $city"),
+                        if (lastSeen.isNotEmpty) Text("آخرین بازدید: $lastSeen"),
+                        if (muted) Text("سکوت تا: $mutedUntil"),
                       ],
                     ),
                   ),
@@ -651,6 +913,7 @@ class _AdminPageState extends State<AdminPage> {
                   if (isVerified) smallChip("تأیید شده", Colors.green),
                   if (isBlue) smallChip("تیک آبی", Colors.blue),
                   if (isPremium) smallChip("پریمیوم", Colors.orange),
+                  if (muted) smallChip("سکوت زده", Colors.blueGrey),
                 ],
               ),
               const SizedBox(height: 8),
@@ -672,6 +935,19 @@ class _AdminPageState extends State<AdminPage> {
                         handleUnbanUser(id);
                       } else {
                         handleBanUser(id);
+                      }
+                    },
+                  ),
+                  actionButton(
+                    text: muted ? "رفع سکوت" : "سکوت",
+                    icon: muted ? Icons.record_voice_over : Icons.volume_off,
+                    color: muted ? Colors.green : Colors.blueGrey,
+                    onTap: () {
+                      if (id == 0) return;
+                      if (muted) {
+                        handleUnmuteUser(id);
+                      } else {
+                        handleMuteUser(id);
                       }
                     },
                   ),
@@ -722,6 +998,7 @@ class _AdminPageState extends State<AdminPage> {
       ),
     );
   }
+
   Future<void> handleBanUser(int id) async {
     final ok = await askConfirm(
       "مسدود کردن کاربر",
@@ -743,6 +1020,30 @@ class _AdminPageState extends State<AdminPage> {
       () => Api.unbanUser(id),
       "مسدودی کاربر برداشته شد",
       auditAction: "unban_user",
+      targetType: "user",
+      targetId: id,
+    );
+  }
+
+  Future<void> handleMuteUser(int id) async {
+    final days = await askMuteDays();
+    if (days == null) return;
+
+    await runAction(
+      () => Api.muteUser(id, days: days),
+      "کاربر برای $days روز سکوت شد",
+      auditAction: "mute_user",
+      targetType: "user",
+      targetId: id,
+      details: {"days": days},
+    );
+  }
+
+  Future<void> handleUnmuteUser(int id) async {
+    await runAction(
+      () => Api.unmuteUser(id),
+      "سکوت کاربر برداشته شد",
+      auditAction: "unmute_user",
       targetType: "user",
       targetId: id,
     );
@@ -820,6 +1121,19 @@ class _AdminPageState extends State<AdminPage> {
         if (adUserId != selectedUserAdsFilterId) return false;
       }
 
+      final status = textOf(ad, "status").isEmpty ? "approved" : textOf(ad, "status");
+      final isHidden = boolOf(ad, "is_hidden") || boolOf(ad, "hidden");
+      final isFeatured = boolOf(ad, "is_featured");
+      final isPinned = boolOf(ad, "is_pinned");
+
+      if (adStatusFilter == "hidden" && !isHidden) return false;
+      if (adStatusFilter == "featured" && !isFeatured) return false;
+      if (adStatusFilter == "pinned" && !isPinned) return false;
+      if (["pending", "approved", "rejected"].contains(adStatusFilter) &&
+          status != adStatusFilter) {
+        return false;
+      }
+
       if (q.isEmpty) return true;
 
       final text = [
@@ -832,6 +1146,7 @@ class _AdminPageState extends State<AdminPage> {
         textOf(ad, "district"),
         textOf(ad, "city"),
         textOf(ad, "category_name"),
+        textOf(ad, "status"),
       ].join(" ").toLowerCase();
 
       return text.contains(q);
@@ -913,6 +1228,31 @@ class _AdminPageState extends State<AdminPage> {
                         });
                       },
                     ),
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<String>(
+                      value: adStatusFilter,
+                      decoration: InputDecoration(
+                        labelText: "فیلتر آگهی",
+                        filled: true,
+                        fillColor: Colors.white,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: "all", child: Text("همه")),
+                        DropdownMenuItem(value: "pending", child: Text("منتظر بررسی")),
+                        DropdownMenuItem(value: "approved", child: Text("تأیید شده")),
+                        DropdownMenuItem(value: "rejected", child: Text("رد شده")),
+                        DropdownMenuItem(value: "hidden", child: Text("مخفی")),
+                        DropdownMenuItem(value: "featured", child: Text("ویژه")),
+                        DropdownMenuItem(value: "pinned", child: Text("پن شده")),
+                      ],
+                      onChanged: (value) {
+                        if (value == null) return;
+                        setState(() => adStatusFilter = value);
+                      },
+                    ),
                     const SizedBox(height: 12),
                   ],
                 );
@@ -936,6 +1276,7 @@ class _AdminPageState extends State<AdminPage> {
       },
     );
   }
+
   String adMainImage(dynamic ad) {
     final image = textOf(ad, "image_url");
     final full = Api.fullImageUrl(image);
@@ -958,10 +1299,19 @@ class _AdminPageState extends State<AdminPage> {
     final district = textOf(ad, "district");
     final category = textOf(ad, "category_name");
     final image = adMainImage(ad);
+    final status = textOf(ad, "status").isEmpty ? "approved" : textOf(ad, "status");
+    final rejectReason = textOf(ad, "reject_reason");
 
     final isHidden = boolOf(ad, "is_hidden") || boolOf(ad, "hidden");
     final isFeatured = boolOf(ad, "is_featured");
     final isPinned = boolOf(ad, "is_pinned");
+
+    final pinnedUntil = textOf(ad, "pinned_until");
+    final pinPosition = textOf(ad, "pin_position");
+    final featuredUntil = textOf(ad, "featured_until");
+    final callCount = textOf(ad, "call_count");
+    final chatCount = textOf(ad, "chat_count");
+    final viewCount = textOf(ad, "view_count");
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -1026,15 +1376,9 @@ class _AdminPageState extends State<AdminPage> {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      if (phone.isNotEmpty)
-                        Text(
-                          "تماس: $phone",
-                          textAlign: TextAlign.right,
-                        ),
-                      Text(
-                        "${province.isEmpty ? '-' : province} - ${district.isEmpty ? '-' : district}",
-                        textAlign: TextAlign.right,
-                      ),
+                      if (phone.isNotEmpty) Text("تماس: $phone"),
+                      Text("${province.isEmpty ? '-' : province} - ${district.isEmpty ? '-' : district}"),
+                      if (rejectReason.isNotEmpty) Text("دلیل رد: $rejectReason"),
                     ],
                   ),
                 ),
@@ -1045,10 +1389,20 @@ class _AdminPageState extends State<AdminPage> {
               children: [
                 smallChip("ID: $id", Colors.deepPurple),
                 if (userId.isNotEmpty) smallChip("User: $userId", Colors.indigo),
+                smallChip(statusFa(status), statusColor(status)),
                 if (category.isNotEmpty) smallChip(category, Colors.blue),
                 if (isHidden) smallChip("مخفی", Colors.red),
                 if (isFeatured) smallChip("ویژه", Colors.orange),
                 if (isPinned) smallChip("پن", Colors.green),
+                if (pinPosition.isNotEmpty && pinPosition != "null")
+                  smallChip("جایگاه پن: $pinPosition", Colors.green),
+                if (pinnedUntil.isNotEmpty && pinnedUntil != "null")
+                  smallChip("پن تا: $pinnedUntil", Colors.green),
+                if (featuredUntil.isNotEmpty && featuredUntil != "null")
+                  smallChip("ویژه تا: $featuredUntil", Colors.orange),
+                if (viewCount.isNotEmpty) smallChip("بازدید: $viewCount", Colors.grey),
+                if (callCount.isNotEmpty) smallChip("تماس: $callCount", Colors.teal),
+                if (chatCount.isNotEmpty) smallChip("چت: $chatCount", Colors.teal),
               ],
             ),
             const SizedBox(height: 8),
@@ -1059,6 +1413,24 @@ class _AdminPageState extends State<AdminPage> {
                   icon: Icons.visibility,
                   color: Colors.deepPurple,
                   onTap: () => openAd(ad),
+                ),
+                actionButton(
+                  text: "تأیید",
+                  icon: Icons.check_circle,
+                  color: Colors.green,
+                  onTap: () {
+                    if (id == 0) return;
+                    handleApproveAd(id);
+                  },
+                ),
+                actionButton(
+                  text: "رد",
+                  icon: Icons.cancel,
+                  color: Colors.red,
+                  onTap: () {
+                    if (id == 0) return;
+                    handleRejectAd(id);
+                  },
                 ),
                 actionButton(
                   text: isHidden ? "نمایش" : "مخفی",
@@ -1087,7 +1459,7 @@ class _AdminPageState extends State<AdminPage> {
                   },
                 ),
                 actionButton(
-                  text: isPinned ? "لغو پن" : "پن",
+                  text: isPinned ? "لغو پن" : "پن پیشرفته",
                   icon: Icons.push_pin,
                   color: Colors.green,
                   onTap: () {
@@ -1095,8 +1467,17 @@ class _AdminPageState extends State<AdminPage> {
                     if (isPinned) {
                       handleUnpinAd(id);
                     } else {
-                      handlePinAd(id);
+                      handlePinAdvanced(id);
                     }
+                  },
+                ),
+                actionButton(
+                  text: "تمدید ۳۰ روز",
+                  icon: Icons.update,
+                  color: Colors.blue,
+                  onTap: () {
+                    if (id == 0) return;
+                    handleExtendAd(id);
                   },
                 ),
                 actionButton(
@@ -1129,6 +1510,35 @@ class _AdminPageState extends State<AdminPage> {
     if (result == true) {
       reload();
     }
+  }
+
+  Future<void> handleApproveAd(int id) async {
+    await runAction(
+      () => Api.approveAd(id),
+      "آگهی تأیید شد",
+      auditAction: "approve_ad",
+      targetType: "ad",
+      targetId: id,
+    );
+  }
+
+  Future<void> handleRejectAd(int id) async {
+    final reason = await askText(
+      title: "رد آگهی",
+      label: "دلیل رد آگهی",
+      maxLines: 3,
+    );
+
+    if (reason == null) return;
+
+    await runAction(
+      () => Api.rejectAd(id, reason),
+      "آگهی رد شد",
+      auditAction: "reject_ad",
+      targetType: "ad",
+      targetId: id,
+      details: {"reason": reason},
+    );
   }
 
   Future<void> handleHideAd(int id) async {
@@ -1178,24 +1588,45 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
-  Future<void> handlePinAd(int id) async {
+  Future<void> handlePinAdvanced(int id) async {
+    final options = await askPinOptions();
+    if (options == null) return;
+
+    final days = options["days"] ?? 7;
+    final position = options["position"] ?? 1;
+
     await runAction(
-      () => Api.pinAd(id, days: 7, position: 1),
-      "آگهی پن شد",
-      auditAction: "pin_ad",
+      () => Api.pinAdAdvanced(id, days: days, position: position),
+      "آگهی در جایگاه $position برای $days روز پن شد",
+      auditAction: "pin_ad_advanced",
       targetType: "ad",
       targetId: id,
-      details: {"days": 7, "position": 1},
+      details: {"days": days, "position": position},
     );
+  }
+
+  Future<void> handlePinAd(int id) async {
+    await handlePinAdvanced(id);
   }
 
   Future<void> handleUnpinAd(int id) async {
     await runAction(
-      () => Api.unpinAd(id),
+      () => Api.unpinAdAdvanced(id),
       "پن آگهی لغو شد",
       auditAction: "unpin_ad",
       targetType: "ad",
       targetId: id,
+    );
+  }
+
+  Future<void> handleExtendAd(int id) async {
+    await runAction(
+      () => Api.extendAd(id, days: 30),
+      "آگهی ۳۰ روز تمدید شد",
+      auditAction: "extend_ad",
+      targetType: "ad",
+      targetId: id,
+      details: {"days": 30},
     );
   }
 
@@ -1214,6 +1645,7 @@ class _AdminPageState extends State<AdminPage> {
       targetId: id,
     );
   }
+
   Widget buildReports() {
     return FutureBuilder<List<dynamic>>(
       future: reportsFuture,
@@ -1368,7 +1800,7 @@ class _AdminPageState extends State<AdminPage> {
               children: [
                 smallChip("Report ID: $id", Colors.deepPurple),
                 if (adId != 0) smallChip("Ad ID: $adId", Colors.blue),
-                smallChip(status, statusColor(status)),
+                smallChip(statusFa(status), statusColor(status)),
                 if (createdAt.isNotEmpty) smallChip(createdAt, Colors.grey),
               ],
             ),
@@ -1498,6 +1930,224 @@ class _AdminPageState extends State<AdminPage> {
       details: {"report_id": id},
     );
   }
+
+  Widget buildChats() {
+    return FutureBuilder<List<dynamic>>(
+      future: chatsFuture,
+      builder: (context, snapshot) {
+        final chats = snapshot.data ?? [];
+
+        return RefreshIndicator(
+          onRefresh: reload,
+          child: ListView.builder(
+            padding: const EdgeInsets.all(12),
+            itemCount: chats.length + 1,
+            itemBuilder: (context, index) {
+              if (index == 0) {
+                return Column(
+                  children: [
+                    TextField(
+                      controller: chatSearchController,
+                      textDirection: TextDirection.rtl,
+                      decoration: InputDecoration(
+                        hintText: "جستجوی پیام با متن، شماره یا شناسه آگهی",
+                        prefixIcon: const Icon(Icons.search),
+                        suffixIcon: IconButton(
+                          icon: const Icon(Icons.refresh),
+                          onPressed: () {
+                            setState(() {
+                              chatSearchText = chatSearchController.text.trim();
+                              chatsFuture = Api.getAdminAdvancedChats(
+                                q: chatSearchText,
+                              );
+                            });
+                          },
+                        ),
+                        filled: true,
+                        fillColor: Colors.white,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      onSubmitted: (value) {
+                        setState(() {
+                          chatSearchText = value.trim();
+                          chatsFuture = Api.getAdminAdvancedChats(q: chatSearchText);
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    if (snapshot.connectionState == ConnectionState.waiting)
+                      const Center(child: CircularProgressIndicator()),
+                    if (snapshot.hasError)
+                      Center(child: Text(cleanError(snapshot.error!))),
+                    if (snapshot.connectionState != ConnectionState.waiting &&
+                        !snapshot.hasError &&
+                        chats.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 70),
+                        child: Center(child: Text("پیامی وجود ندارد")),
+                      ),
+                  ],
+                );
+              }
+
+              return buildChatCard(chats[index - 1]);
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  Widget buildChatCard(dynamic chat) {
+    final id = intOf(chat, "id");
+    final adId = textOf(chat, "ad_id");
+    final adTitle = textOf(chat, "ad_title");
+    final imageUrl = Api.fullImageUrl(textOf(chat, "image_url"));
+    final sender = textOf(chat, "sender_phone");
+    final receiver = textOf(chat, "receiver_phone");
+    final message = textOf(chat, "message");
+    final createdAt = textOf(chat, "created_at");
+    final deleted = boolOf(chat, "is_deleted");
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              textDirection: TextDirection.rtl,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: imageUrl.isEmpty
+                      ? Container(
+                          width: 60,
+                          height: 60,
+                          color: Colors.grey.shade200,
+                          child: const Icon(Icons.chat),
+                        )
+                      : Image.network(
+                          imageUrl,
+                          width: 60,
+                          height: 60,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) {
+                            return Container(
+                              width: 60,
+                              height: 60,
+                              color: Colors.grey.shade200,
+                              child: const Icon(Icons.broken_image),
+                            );
+                          },
+                        ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    textDirection: TextDirection.rtl,
+                    children: [
+                      Text(
+                        adTitle.isEmpty ? "پیام آگهی #$adId" : adTitle,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text("از: ${sender.isEmpty ? '-' : sender}"),
+                      Text("به: ${receiver.isEmpty || receiver == 'null' ? '-' : receiver}"),
+                      if (createdAt.isNotEmpty) Text(createdAt),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: deleted ? Colors.red.withOpacity(0.08) : Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Text(
+                message.isEmpty ? "-" : message,
+                textAlign: TextAlign.right,
+                style: TextStyle(
+                  height: 1.5,
+                  decoration: deleted ? TextDecoration.lineThrough : null,
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              children: [
+                smallChip("Message ID: $id", Colors.deepPurple),
+                if (adId.isNotEmpty) smallChip("Ad: $adId", Colors.blue),
+                if (deleted) smallChip("حذف شده", Colors.red),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              children: [
+                if (!deleted)
+                  actionButton(
+                    text: "حذف پیام",
+                    icon: Icons.delete,
+                    color: Colors.red,
+                    onTap: () {
+                      if (id == 0) return;
+                      handleDeleteMessage(id);
+                    },
+                  ),
+                if (deleted)
+                  actionButton(
+                    text: "برگرداندن پیام",
+                    icon: Icons.restore,
+                    color: Colors.green,
+                    onTap: () {
+                      if (id == 0) return;
+                      handleRestoreMessage(id);
+                    },
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> handleDeleteMessage(int id) async {
+    final ok = await askConfirm("حذف پیام", "آیا این پیام حذف شود؟");
+    if (!ok) return;
+
+    await runAction(
+      () => Api.deleteAdminMessage(id),
+      "پیام حذف شد",
+      auditAction: "delete_message",
+      targetType: "message",
+      targetId: id,
+    );
+  }
+
+  Future<void> handleRestoreMessage(int id) async {
+    await runAction(
+      () => Api.restoreAdminMessage(id),
+      "پیام برگردانده شد",
+      auditAction: "restore_message",
+      targetType: "message",
+      targetId: id,
+    );
+  }
+
   Widget buildNotifications() {
     return FutureBuilder<List<dynamic>>(
       future: notificationsFuture,
@@ -1703,7 +2353,7 @@ class _AdminPageState extends State<AdminPage> {
                       child: const Icon(Icons.payment, color: Colors.white),
                     ),
                     title: Text("پرداخت #$id - $amount $currency"),
-                    subtitle: Text("وضعیت: $status\nهدف: $purpose\n$createdAt"),
+                    subtitle: Text("وضعیت: ${statusFa(status)}\nهدف: $purpose\n$createdAt"),
                   ),
                 );
               }).toList(),
@@ -1752,6 +2402,201 @@ class _AdminPageState extends State<AdminPage> {
     paymentAmountController.clear();
     paymentNoteController.clear();
   }
+
+  Widget buildBlockedWords() {
+    return FutureBuilder<List<dynamic>>(
+      future: blockedWordsFuture,
+      builder: (context, snapshot) {
+        final words = snapshot.data ?? [];
+
+        return RefreshIndicator(
+          onRefresh: reload,
+          child: ListView(
+            padding: const EdgeInsets.all(12),
+            children: [
+              Card(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    children: [
+                      const Text(
+                        "افزودن کلمه ممنوعه",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: blockedWordController,
+                        decoration: const InputDecoration(
+                          labelText: "کلمه",
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: blockedWordTypeController,
+                        decoration: const InputDecoration(
+                          labelText: "نوع؛ general / scam / badword",
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: loading ? null : addBlockedWord,
+                          icon: const Icon(Icons.add),
+                          label: const Text("افزودن"),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              if (snapshot.connectionState == ConnectionState.waiting)
+                const Center(child: CircularProgressIndicator()),
+              if (snapshot.hasError)
+                Center(child: Text(cleanError(snapshot.error!))),
+              if (words.isEmpty)
+                const Center(child: Text("کلمه ممنوعه‌ای وجود ندارد")),
+              ...words.map((item) {
+                final id = intOf(item, "id");
+                final word = textOf(item, "word");
+                final type = textOf(item, "type");
+                final active = boolOf(item, "is_active");
+
+                return Card(
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: active ? Colors.red : Colors.grey,
+                      child: const Icon(Icons.block, color: Colors.white),
+                    ),
+                    title: Text(word.isEmpty ? "-" : word),
+                    subtitle: Text("نوع: ${type.isEmpty ? 'general' : type}"),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      onPressed: () {
+                        if (id == 0) return;
+                        handleDeleteBlockedWord(id);
+                      },
+                    ),
+                  ),
+                );
+              }).toList(),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> addBlockedWord() async {
+    final word = blockedWordController.text.trim();
+    final type = blockedWordTypeController.text.trim().isEmpty
+        ? "general"
+        : blockedWordTypeController.text.trim();
+
+    if (word.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("کلمه را وارد کنید")),
+      );
+      return;
+    }
+
+    await runAction(
+      () => Api.addBlockedWord(word: word, type: type),
+      "کلمه ممنوعه اضافه شد",
+      auditAction: "add_blocked_word",
+      targetType: "blocked_word",
+      details: {"word": word, "type": type},
+    );
+
+    blockedWordController.clear();
+  }
+
+  Future<void> handleDeleteBlockedWord(int id) async {
+    final ok = await askConfirm("حذف کلمه", "آیا این کلمه حذف شود؟");
+    if (!ok) return;
+
+    await runAction(
+      () => Api.deleteBlockedWord(id),
+      "کلمه حذف شد",
+      auditAction: "delete_blocked_word",
+      targetType: "blocked_word",
+      targetId: id,
+    );
+  }
+
+  Widget buildDevices() {
+    return FutureBuilder<List<dynamic>>(
+      future: devicesFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (snapshot.hasError) {
+          return Center(child: Text(cleanError(snapshot.error!)));
+        }
+
+        final devices = snapshot.data ?? [];
+
+        if (devices.isEmpty) {
+          return RefreshIndicator(
+            onRefresh: reload,
+            child: ListView(
+              children: const [
+                SizedBox(height: 120),
+                Center(child: Text("دستگاهی ثبت نشده است")),
+              ],
+            ),
+          );
+        }
+
+        return RefreshIndicator(
+          onRefresh: reload,
+          child: ListView.builder(
+            padding: const EdgeInsets.all(12),
+            itemCount: devices.length,
+            itemBuilder: (context, index) {
+              final item = devices[index];
+              final id = textOf(item, "id");
+              final phone = textOf(item, "phone");
+              final platform = textOf(item, "platform");
+              final token = textOf(item, "fcm_token");
+              final updatedAt = textOf(item, "updated_at");
+              final createdAt = textOf(item, "created_at");
+
+              return Card(
+                margin: const EdgeInsets.only(bottom: 10),
+                child: ListTile(
+                  leading: const CircleAvatar(
+                    child: Icon(Icons.devices),
+                  ),
+                  title: Text("دستگاه #$id - ${phone.isEmpty ? '-' : phone}"),
+                  subtitle: Text(
+                    [
+                      if (platform.isNotEmpty) "پلتفرم: $platform",
+                      if (token.isNotEmpty) "توکن: ${token.length > 30 ? '${token.substring(0, 30)}...' : token}",
+                      if (updatedAt.isNotEmpty) "آپدیت: $updatedAt",
+                      if (createdAt.isNotEmpty) "ساخت: $createdAt",
+                    ].join("\n"),
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
   Widget buildSettings() {
     return FutureBuilder<Map<String, dynamic>>(
       future: settingsFuture,
@@ -1876,7 +2721,15 @@ class _AdminPageState extends State<AdminPage> {
         final logs = snapshot.data ?? [];
 
         if (logs.isEmpty) {
-          return const Center(child: Text("لاگ مدیریتی وجود ندارد"));
+          return RefreshIndicator(
+            onRefresh: reload,
+            child: ListView(
+              children: const [
+                SizedBox(height: 120),
+                Center(child: Text("لاگ مدیریتی وجود ندارد")),
+              ],
+            ),
+          );
         }
 
         return RefreshIndicator(
@@ -1891,6 +2744,7 @@ class _AdminPageState extends State<AdminPage> {
               final targetType = textOf(item, "target_type");
               final targetId = textOf(item, "target_id");
               final adminPhone = textOf(item, "admin_phone");
+              final adminUser = textOf(item, "admin_user");
               final createdAt = textOf(item, "created_at");
               final details = textOf(item, "details");
 
@@ -1909,6 +2763,7 @@ class _AdminPageState extends State<AdminPage> {
                       if (targetType.isNotEmpty) "نوع: $targetType",
                       if (targetId.isNotEmpty) "شناسه: $targetId",
                       if (adminPhone.isNotEmpty) "مدیر: $adminPhone",
+                      if (adminUser.isNotEmpty) "مدیر: $adminUser",
                       if (details.isNotEmpty) "جزئیات: $details",
                       if (createdAt.isNotEmpty) createdAt,
                     ].join("\n"),

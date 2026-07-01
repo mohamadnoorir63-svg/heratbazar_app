@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../core/api.dart';
 import '../core/session.dart';
+import '../core/lang.dart';
 import 'chat_page.dart';
 import 'create_ad_page.dart';
 
@@ -46,22 +47,247 @@ class _AdDetailPageState extends State<AdDetailPage> {
     return int.tryParse(getText("id")) ?? 0;
   }
 
+  // Converts old Persian/Dari stored category names OR new English keys
+  // into one stable key. This makes old ads and new ads both display correctly.
+  String normalizeKey(String value) {
+    final v = value.trim();
+    if (v.isEmpty) return "";
+
+    if (v.startsWith("cat_") ||
+        v.startsWith("sub_") ||
+        v.startsWith("province_")) {
+      return v;
+    }
+
+    const map = {
+      "املاک": "cat_real_estate",
+      "وسایل نقلیه": "cat_vehicles",
+      "لوازم الکترونیکی": "cat_electronics",
+      "مربوط به خانه": "cat_home",
+      "خدمات": "cat_services",
+      "وسایل شخصی": "cat_personal",
+      "سرگرمی و فراغت": "cat_entertainment",
+      "لوازم کودک": "cat_kids",
+      "برای کسب و کار": "cat_business",
+      "استخدام و کاریابی": "cat_jobs",
+
+      "خانه فروشی": "sub_house_sale",
+      "خانه کرایی": "sub_house_rent",
+      "آپارتمان": "sub_apartment",
+      "آپارتمان فروشی": "sub_apartment_sale",
+      "آپارتمان کرایی": "sub_apartment_rent",
+      "زمین": "sub_land",
+      "دکان و مغازه": "sub_shop",
+      "دکان فروشی": "sub_shop_sale",
+      "دکان کرایی": "sub_shop_rent",
+      "دفتر کار": "sub_office",
+      "دفتر فروشی": "sub_office_sale",
+      "دفتر کرایی": "sub_office_rent",
+      "گدام": "sub_warehouse",
+      "زمین زراعتی": "sub_farm",
+      "باغ": "sub_garden",
+      "اتاق کرایی": "sub_room_rent",
+
+      "موتر": "sub_car",
+      "موترسایکل": "sub_motorcycle",
+      "بایسکل": "sub_bicycle",
+      "لاری / کامیون": "sub_truck",
+      "بس": "sub_bus",
+      "وان / سراچه": "sub_van",
+      "ریکشا": "sub_rickshaw",
+      "پرزه موتر": "sub_car_parts",
+      "تایر و پرزه": "sub_tires_parts",
+      "لوازم موتر": "sub_vehicle_accessories",
+
+      "موبایل": "sub_mobile",
+      "لپتاپ": "sub_laptop",
+      "کمپیوتر": "sub_computer",
+      "تبلت": "sub_tablet",
+      "تلویزیون": "sub_tv",
+      "یخچال": "sub_fridge",
+      "ماشین لباس‌شویی": "sub_washing_machine",
+      "کمره": "sub_camera",
+      "جنراتور": "sub_generator",
+      "پرنتر": "sub_printer",
+      "اسپیکر و صوتی": "sub_speaker",
+      "کنسول بازی": "sub_console",
+      "ساعت هوشمند": "sub_smart_watch",
+      "مودم / روتر": "sub_router",
+      "سولر و پنل آفتابی": "sub_solar_panel",
+      "پرزه الکترونیکی": "sub_electronic_parts",
+
+      "فرنیچر": "sub_furniture",
+      "قالین": "sub_carpet",
+      "ظروف": "sub_dishes",
+      "لوازم آشپزخانه": "sub_kitchen_items",
+      "بستر و کمپل": "sub_bedding",
+      "دکور خانه": "sub_home_decor",
+      "ابزار کار": "sub_tools",
+      "وسایل باغبانی": "sub_garden_tools",
+      "وسایل پاک‌کاری": "sub_cleaning_items",
+
+      "خدمات ساختمانی": "sub_construction_services",
+      "خدمات تخنیکی": "sub_technical_services",
+      "خدمات صحی": "sub_health_services",
+      "خدمات آموزشی": "sub_education_services",
+      "خدمات انتقالات": "sub_transport_services",
+      "خدمات خانه": "sub_home_services",
+      "خدمات ترمیم": "sub_repair_services",
+      "خدمات حقوقی": "sub_legal_services",
+      "خدمات محفل": "sub_event_services",
+      "دیزاین و گرافیک": "sub_design_services",
+
+      "لباس": "sub_clothes",
+      "کفش": "sub_shoes",
+      "ساعت": "sub_watch",
+      "عطر": "sub_perfume",
+      "زیورات": "sub_jewelry",
+      "بکس": "sub_bag",
+      "آرایشی و بهداشتی": "sub_cosmetics",
+      "عینک": "sub_glasses",
+
+      "کتاب": "sub_book",
+      "اسباب‌بازی": "sub_toy",
+      "ورزشی": "sub_sport",
+      "موسیقی": "sub_music",
+      "بازی و سرگرمی": "sub_games",
+      "بایسکل ورزشی": "sub_bicycle_sport",
+      "لوازم حیوانات": "sub_pet_supplies",
+
+      "لباس کودک": "sub_kids_clothes",
+      "کالسکه": "sub_stroller",
+      "اسباب‌بازی کودک": "sub_kids_toy",
+      "تخت کودک": "sub_kids_bed",
+      "لوازم مکتب": "sub_school_items",
+      "لوازم نوزاد": "sub_baby_items",
+      "بایسکل کودک": "sub_kids_bicycle",
+
+      "وسایل دکان": "sub_shop_equipment",
+      "وسایل رستورانت": "sub_restaurant_equipment",
+      "وسایل دفتر": "sub_office_equipment",
+      "ماشین‌آلات": "sub_machinery",
+      "مواد خام": "sub_raw_materials",
+      "وسایل زراعتی": "sub_agriculture_equipment",
+      "وسایل طبی": "sub_medical_equipment",
+      "وسایل فابریکه": "sub_factory_equipment",
+
+      "کار تمام وقت": "sub_full_time",
+      "کار نیمه وقت": "sub_part_time",
+      "کار روزمزد": "sub_daily_work",
+      "کار آنلاین": "sub_online_work",
+      "استخدام کارمند": "sub_hiring",
+      "کارآموزی": "sub_internship",
+      "راننده": "sub_driver_job",
+      "معلم / استاد": "sub_teacher_job",
+      "نگهبان / امنیت": "sub_security_job",
+      "کارگر": "sub_worker_job",
+    };
+
+    return map[v] ?? v;
+  }
+
+  String trValue(String value) {
+    final key = normalizeKey(value);
+    if (key.isEmpty) return "";
+    return T.tr(key);
+  }
+
+  String normalizeSpecKey(String key) {
+    final k = key.trim();
+
+    if (k.startsWith("main_category") || k == "دسته اصلی") return "main_category";
+    if (k.startsWith("sub_category") || k == "زیر دسته") return "sub_category";
+
+    const map = {
+      "آدرس دقیق": "exact_address",
+      "آدرس": "exact_address",
+      "برند": "brand",
+      "برند/نوع": "brand_type",
+      "برند / نوع": "brand_type",
+      "برند / نوع موتر": "brand_type_vehicle",
+      "عنوان": "title",
+      "مدل": "model",
+      "مدل/اندازه": "model_size",
+      "مدل / اندازه": "model_size",
+      "سال ساخت": "year_made",
+      "سال/نسخه": "year_version",
+      "سال / نسخه": "year_version",
+      "رنگ": "color",
+      "وضعیت": "condition",
+      "اندازه": "size",
+      "اندازه/حافظه/ظرفیت": "size_capacity",
+      "اندازه / ظرفیت کلی": "size_capacity",
+      "اندازه / ظرفیت": "size_capacity",
+      "ظرفیت": "capacity",
+      "حافظه داخلی": "internal_storage",
+      "رم": "ram",
+      "پردازنده": "processor",
+      "باتری": "battery_status",
+      "وضعیت باتری": "battery_status",
+      "اندازه صفحه": "screen_size",
+      "گارانتی": "warranty",
+      "جعبه اصلی": "original_box",
+      "سریال / IMEI": "serial_imei",
+      "سریال/IMEI": "serial_imei",
+      "لوازم همراه": "accessories",
+      "سابقه تعمیر": "repair_history",
+      "کیلومتر": "km_used",
+      "کیلومتر کارکرد": "km_used",
+      "تیل": "fuel_type",
+      "نوع تیل": "fuel_type",
+      "گیربکس": "gearbox",
+      "اسناد/پلاک": "plate_docs",
+      "اسناد / نمبر پلیت": "plate_docs",
+      "نوع سند": "document_type",
+      "متراژ": "area",
+      "متراژ زمین": "land_area",
+      "تعداد اتاق": "rooms",
+      "تعداد تشناب": "bathrooms",
+      "آشپزخانه": "kitchen",
+      "طبقه/منزل": "floor",
+      "طبقه / منزل": "floor",
+      "پارکینگ": "parking",
+      "امکانات": "facilities",
+      "کرایه": "monthly_rent",
+      "کرایه ماهانه": "monthly_rent",
+      "گروی": "deposit",
+      "نوع ملک": "property_type",
+      "جهت زمین": "land_direction",
+      "آب و برق": "water_power",
+      "نوع استفاده زمین": "land_use",
+      "بر جاده": "frontage",
+      "بر خیابان": "frontage",
+      "ارتفاع": "height",
+      "معاش/قیمت": "salary_service_price",
+      "معاش / قیمت خدمات": "salary_service_price",
+      "وقت کاری": "work_time",
+      "تجربه لازم": "experience_required",
+      "نام پرزه": "part_name",
+      "برای کدام مدل": "part_for",
+      "تعداد / مقدار": "quantity",
+      "وزن": "weight",
+      "نام کتاب": "book_title",
+      "نویسنده": "author",
+      "سن مناسب": "age_range",
+    };
+
+    return map[k] ?? k;
+  }
+
   String maskedPhone(String phone) {
     final clean = phone.trim();
 
-    if (clean.isEmpty) return "نامشخص";
-    if (clean.length <= 4) return "مخفی";
+    if (clean.isEmpty) return T.tr("unknown");
+    if (clean.length <= 4) return T.tr("hidden");
 
     return "${clean.substring(0, 3)}******${clean.substring(clean.length - 2)}";
   }
 
   Future<void> loadFavoriteState() async {
     final id = getAdId().toString();
-
     if (id == "0") return;
 
     final liked = await Session.isFavoriteAd(id);
-
     if (!mounted) return;
 
     setState(() {
@@ -73,7 +299,7 @@ class _AdDetailPageState extends State<AdDetailPage> {
     final id = getAdId().toString();
 
     if (id == "0") {
-      showMessage("شناسه آگهی نامعتبر است");
+      showMessage(T.tr("invalid_ad_id"));
       return;
     }
 
@@ -86,9 +312,7 @@ class _AdDetailPageState extends State<AdDetailPage> {
     });
 
     showMessage(
-      liked
-          ? "آگهی به علاقه‌مندی‌ها اضافه شد"
-          : "آگهی از علاقه‌مندی‌ها حذف شد",
+      liked ? T.tr("added_to_favorites") : T.tr("ad_removed_from_favorites"),
     );
   }
 
@@ -118,13 +342,13 @@ class _AdDetailPageState extends State<AdDetailPage> {
   String formatPrice(String price) {
     final raw = price.trim();
 
-    if (raw.isEmpty || raw == "0") {
-      return "توافقی";
+    if (raw.isEmpty || raw == "0" || raw.toLowerCase() == "negotiable") {
+      return T.tr("negotiable");
     }
 
     final number = int.tryParse(raw.replaceAll(",", ""));
     if (number == null) {
-      return "$raw افغانی";
+      return "${trValue(raw)} ${T.tr("afghani")}";
     }
 
     final formatted = number.toString().replaceAllMapped(
@@ -132,7 +356,7 @@ class _AdDetailPageState extends State<AdDetailPage> {
           (match) => ",",
         );
 
-    return "$formatted افغانی";
+    return "$formatted ${T.tr("afghani")}";
   }
 
   String getLocation() {
@@ -141,9 +365,7 @@ class _AdDetailPageState extends State<AdDetailPage> {
     final city = getText("city");
     final address = getText("address");
 
-    if (address.isNotEmpty) {
-      return address;
-    }
+    if (address.isNotEmpty) return address;
 
     if (province.isNotEmpty && district.isNotEmpty) {
       return "$province - $district";
@@ -151,12 +373,12 @@ class _AdDetailPageState extends State<AdDetailPage> {
 
     if (city.isNotEmpty) return city;
 
-    return "موقعیت نامشخص";
+    return T.tr("unknown_location");
   }
 
   String getCleanDescription() {
     final description = getText("description");
-    if (description.isEmpty) return "توضیحی ثبت نشده است.";
+    if (description.isEmpty) return T.tr("no_description");
 
     final lines = description.split("\n");
 
@@ -166,6 +388,8 @@ class _AdDetailPageState extends State<AdDetailPage> {
       if (text.isEmpty) return false;
       if (text.startsWith("دسته اصلی:")) return false;
       if (text.startsWith("زیر دسته:")) return false;
+      if (text.startsWith("main_category:")) return false;
+      if (text.startsWith("sub_category:")) return false;
       if (text.startsWith("ولایت:")) return false;
       if (text.startsWith("ولسوالی:")) return false;
       if (text.startsWith("آدرس دقیق:")) return false;
@@ -176,17 +400,25 @@ class _AdDetailPageState extends State<AdDetailPage> {
       return true;
     }).toList();
 
-    if (cleanLines.isEmpty) return "توضیحی ثبت نشده است.";
+    if (cleanLines.isEmpty) return T.tr("no_description");
 
     return cleanLines.join("\n");
   }
-  String getMainCategory() {
-    final description = getText("description");
 
+  String getMainCategory() {
+    final direct = getText("main_category");
+    if (direct.isNotEmpty) return normalizeKey(direct);
+
+    final description = getText("description");
     for (final line in description.split("\n")) {
       final text = line.trim();
+
       if (text.startsWith("دسته اصلی:")) {
-        return text.replaceFirst("دسته اصلی:", "").trim();
+        return normalizeKey(text.replaceFirst("دسته اصلی:", "").trim());
+      }
+
+      if (text.startsWith("main_category:")) {
+        return normalizeKey(text.replaceFirst("main_category:", "").trim());
       }
     }
 
@@ -194,19 +426,26 @@ class _AdDetailPageState extends State<AdDetailPage> {
   }
 
   String getSubCategory() {
-    final description = getText("description");
+    final direct = getText("sub_category");
+    if (direct.isNotEmpty) return normalizeKey(direct);
 
+    final description = getText("description");
     for (final line in description.split("\n")) {
       final text = line.trim();
+
       if (text.startsWith("زیر دسته:")) {
-        return text.replaceFirst("زیر دسته:", "").trim();
+        return normalizeKey(text.replaceFirst("زیر دسته:", "").trim());
+      }
+
+      if (text.startsWith("sub_category:")) {
+        return normalizeKey(text.replaceFirst("sub_category:", "").trim());
       }
     }
 
     final category = getText("category_name");
-    if (category.isNotEmpty) return category;
+    if (category.isNotEmpty) return normalizeKey(category);
 
-    return "دسته‌بندی نامشخص";
+    return "unknown_category";
   }
 
   List<Map<String, String>> getSpecs() {
@@ -221,6 +460,8 @@ class _AdDetailPageState extends State<AdDetailPage> {
 
       if (text.startsWith("دسته اصلی:")) continue;
       if (text.startsWith("زیر دسته:")) continue;
+      if (text.startsWith("main_category:")) continue;
+      if (text.startsWith("sub_category:")) continue;
       if (text.startsWith("ولایت:")) continue;
       if (text.startsWith("ولسوالی:")) continue;
       if (text.startsWith("مختصات:")) continue;
@@ -229,14 +470,17 @@ class _AdDetailPageState extends State<AdDetailPage> {
       final parts = text.split(":");
       if (parts.length < 2) continue;
 
-      final key = parts.first.trim();
-      final value = parts.sublist(1).join(":").trim();
+      final rawKey = parts.first.trim();
+      final rawValue = parts.sublist(1).join(":").trim();
 
-      if (key.isEmpty || value.isEmpty) continue;
+      if (rawKey.isEmpty || rawValue.isEmpty) continue;
+
+      final key = normalizeSpecKey(rawKey);
+      final value = normalizeKey(rawValue);
 
       specs.add({
-        "key": key,
-        "value": value,
+        "key": T.tr(key),
+        "value": value == rawValue ? rawValue : T.tr(value),
       });
     }
 
@@ -244,26 +488,26 @@ class _AdDetailPageState extends State<AdDetailPage> {
   }
 
   Color categoryColor(String category) {
-    switch (category) {
-      case "املاک":
+    switch (normalizeKey(category)) {
+      case "cat_real_estate":
         return Colors.deepPurple;
-      case "وسایل نقلیه":
+      case "cat_vehicles":
         return Colors.blue;
-      case "لوازم الکترونیکی":
+      case "cat_electronics":
         return Colors.teal;
-      case "مربوط به خانه":
+      case "cat_home":
         return Colors.orange;
-      case "خدمات":
+      case "cat_services":
         return Colors.green;
-      case "وسایل شخصی":
+      case "cat_personal":
         return Colors.pink;
-      case "سرگرمی و فراغت":
+      case "cat_entertainment":
         return Colors.indigo;
-      case "لوازم کودک":
+      case "cat_kids":
         return Colors.cyan;
-      case "برای کسب و کار":
+      case "cat_business":
         return Colors.brown;
-      case "استخدام و کاریابی":
+      case "cat_jobs":
         return Colors.redAccent;
       default:
         return Colors.grey;
@@ -271,26 +515,26 @@ class _AdDetailPageState extends State<AdDetailPage> {
   }
 
   IconData categoryIcon(String category) {
-    switch (category) {
-      case "املاک":
+    switch (normalizeKey(category)) {
+      case "cat_real_estate":
         return Icons.apartment;
-      case "وسایل نقلیه":
+      case "cat_vehicles":
         return Icons.directions_car;
-      case "لوازم الکترونیکی":
+      case "cat_electronics":
         return Icons.devices;
-      case "مربوط به خانه":
+      case "cat_home":
         return Icons.chair;
-      case "خدمات":
+      case "cat_services":
         return Icons.handyman;
-      case "وسایل شخصی":
+      case "cat_personal":
         return Icons.watch;
-      case "سرگرمی و فراغت":
+      case "cat_entertainment":
         return Icons.sports_esports;
-      case "لوازم کودک":
+      case "cat_kids":
         return Icons.child_care;
-      case "برای کسب و کار":
+      case "cat_business":
         return Icons.store;
-      case "استخدام و کاریابی":
+      case "cat_jobs":
         return Icons.work;
       default:
         return Icons.category;
@@ -302,30 +546,34 @@ class _AdDetailPageState extends State<AdDetailPage> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(text),
+        content: Text(
+          text,
+          textDirection: TextDirection.rtl,
+          textAlign: TextAlign.right,
+        ),
         behavior: SnackBarBehavior.floating,
       ),
     );
   }
 
- Future<bool> isOwner() async {
-  if (!Session.isLoggedIn) return false;
+  Future<bool> isOwner() async {
+    if (!Session.isLoggedIn) return false;
 
-  final adUserId = int.tryParse(getText("user_id"));
-  final myUserId = Session.userId;
+    final adUserId = int.tryParse(getText("user_id"));
+    final myUserId = Session.userId;
 
-  if (adUserId != null && adUserId > 0 && myUserId != null) {
-    return adUserId == myUserId;
+    if (adUserId != null && adUserId > 0 && myUserId != null) {
+      return adUserId == myUserId;
+    }
+
+    return false;
   }
-
-  return false;
-}
 
   Future<void> callSeller(String phone) async {
     final cleanPhone = phone.trim();
 
     if (cleanPhone.isEmpty) {
-      showMessage("شماره تماس موجود نیست");
+      showMessage(T.tr("phone_not_available"));
       return;
     }
 
@@ -335,17 +583,17 @@ class _AdDetailPageState extends State<AdDetailPage> {
         return Directionality(
           textDirection: TextDirection.rtl,
           child: AlertDialog(
-            title: const Text("تماس با فروشنده"),
-            content: Text("شماره تماس:\n$cleanPhone"),
+            title: Text(T.tr("call_seller")),
+            content: Text("${T.tr("phone_number")}:\n$cleanPhone"),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
-                child: const Text("لغو"),
+                child: Text(T.tr("cancel")),
               ),
               FilledButton.icon(
                 onPressed: () => Navigator.pop(context, true),
                 icon: const Icon(Icons.phone),
-                label: const Text("تماس"),
+                label: Text(T.tr("call")),
               ),
             ],
           ),
@@ -360,7 +608,7 @@ class _AdDetailPageState extends State<AdDetailPage> {
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri);
     } else {
-      showMessage("امکان تماس با این شماره وجود ندارد");
+      showMessage(T.tr("cannot_call"));
     }
   }
 
@@ -368,7 +616,7 @@ class _AdDetailPageState extends State<AdDetailPage> {
     final canEdit = await isOwner();
 
     if (!canEdit) {
-      showMessage("شما اجازه ویرایش این آگهی را ندارید");
+      showMessage(T.tr("no_permission_edit"));
       return;
     }
 
@@ -383,11 +631,12 @@ class _AdDetailPageState extends State<AdDetailPage> {
       Navigator.pop(context, true);
     }
   }
+
   Future<void> deleteAd() async {
     final canDelete = await isOwner();
 
     if (!canDelete) {
-      showMessage("شما اجازه حذف این آگهی را ندارید");
+      showMessage(T.tr("no_permission_delete"));
       return;
     }
 
@@ -397,17 +646,17 @@ class _AdDetailPageState extends State<AdDetailPage> {
         return Directionality(
           textDirection: TextDirection.rtl,
           child: AlertDialog(
-            title: const Text("حذف آگهی"),
-            content: const Text("آیا مطمئن هستید که این آگهی حذف شود؟"),
+            title: Text(T.tr("delete_ad")),
+            content: Text(T.tr("delete_ad_confirm")),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
-                child: const Text("لغو"),
+                child: Text(T.tr("cancel")),
               ),
               FilledButton(
                 style: FilledButton.styleFrom(backgroundColor: Colors.red),
                 onPressed: () => Navigator.pop(context, true),
-                child: const Text("حذف"),
+                child: Text(T.tr("delete")),
               ),
             ],
           ),
@@ -433,18 +682,18 @@ class _AdDetailPageState extends State<AdDetailPage> {
       if (!mounted) return;
 
       if (response.statusCode == 200 || response.statusCode == 204) {
-        showMessage("آگهی حذف شد");
+        showMessage(T.tr("ad_deleted"));
         Navigator.pop(context, true);
         return;
       }
 
       if (response.statusCode == 403) {
-        showMessage("شما اجازه حذف این آگهی را ندارید");
+        showMessage(T.tr("no_permission_delete"));
       } else {
-        showMessage("حذف آگهی انجام نشد");
+        showMessage(T.tr("delete_ad_failed"));
       }
     } catch (_) {
-      showMessage("خطا در حذف آگهی");
+      showMessage(T.tr("delete_ad_error"));
     } finally {
       if (mounted) setState(() => actionLoading = false);
     }
@@ -456,7 +705,7 @@ class _AdDetailPageState extends State<AdDetailPage> {
     if (!mounted) return;
 
     if (!canManage) {
-      showMessage("این آگهی مربوط به شما نیست");
+      showMessage(T.tr("not_your_ad"));
       return;
     }
 
@@ -474,7 +723,7 @@ class _AdDetailPageState extends State<AdDetailPage> {
               children: [
                 ListTile(
                   leading: const Icon(Icons.edit, color: Colors.blue),
-                  title: const Text("ویرایش آگهی"),
+                  title: Text(T.tr("edit_ad")),
                   onTap: () {
                     Navigator.pop(context);
                     openEditPage();
@@ -482,7 +731,7 @@ class _AdDetailPageState extends State<AdDetailPage> {
                 ),
                 ListTile(
                   leading: const Icon(Icons.delete, color: Colors.red),
-                  title: const Text("حذف آگهی"),
+                  title: Text(T.tr("delete_ad")),
                   onTap: () {
                     Navigator.pop(context);
                     deleteAd();
@@ -556,28 +805,29 @@ class _AdDetailPageState extends State<AdDetailPage> {
               onPressed: toggleFavorite,
             ),
           ),
-        if (getText("user_id") == Session.userId?.toString()) ...[
-  const SizedBox(width: 8),
-  CircleAvatar(
-    backgroundColor: Colors.black54,
-    child: actionLoading
-        ? const Padding(
-            padding: EdgeInsets.all(10),
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: Colors.white,
+          if (getText("user_id") == Session.userId?.toString()) ...[
+            const SizedBox(width: 8),
+            CircleAvatar(
+              backgroundColor: Colors.black54,
+              child: actionLoading
+                  ? const Padding(
+                      padding: EdgeInsets.all(10),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : IconButton(
+                      icon: const Icon(Icons.more_vert, color: Colors.white),
+                      onPressed: showOwnerMenu,
+                    ),
             ),
-          )
-        : IconButton(
-            icon: const Icon(Icons.more_vert, color: Colors.white),
-            onPressed: showOwnerMenu,
-          ),
-  ),
-],
+          ],
         ],
       ),
     );
   }
+
   Widget imageGallery(List<String> images, String title) {
     if (images.isEmpty) {
       return Stack(
@@ -686,10 +936,7 @@ class _AdDetailPageState extends State<AdDetailPage> {
               right: 18,
               bottom: 16,
               child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 7,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                 decoration: BoxDecoration(
                   color: Colors.black87,
                   borderRadius: BorderRadius.circular(14),
@@ -708,16 +955,13 @@ class _AdDetailPageState extends State<AdDetailPage> {
               bottom: 16,
               child: Container(
                 constraints: const BoxConstraints(maxWidth: 220),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 7,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                 decoration: BoxDecoration(
                   color: Colors.black54,
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Text(
-                  title.isEmpty ? "جزئیات آگهی" : title,
+                  title.isEmpty ? T.tr("ad_details") : title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -808,7 +1052,7 @@ class _AdDetailPageState extends State<AdDetailPage> {
           ),
           Expanded(
             child: Text(
-              value.isEmpty ? "نامشخص" : value,
+              value.isEmpty ? T.tr("unknown") : value,
               textAlign: TextAlign.right,
               style: const TextStyle(fontSize: 17, height: 1.4),
             ),
@@ -817,6 +1061,7 @@ class _AdDetailPageState extends State<AdDetailPage> {
       ),
     );
   }
+
   Widget priceAndTitleCard({
     required String title,
     required String price,
@@ -847,7 +1092,7 @@ class _AdDetailPageState extends State<AdDetailPage> {
         textDirection: TextDirection.rtl,
         children: [
           Text(
-            title.isEmpty ? "بدون عنوان" : title,
+            title.isEmpty ? T.tr("no_title") : title,
             textAlign: TextAlign.right,
             style: const TextStyle(
               fontSize: 28,
@@ -857,7 +1102,7 @@ class _AdDetailPageState extends State<AdDetailPage> {
           ),
           const SizedBox(height: 12),
           Text(
-            "قیمت: ${formatPrice(price)}",
+            "${T.tr("price")}: ${formatPrice(price)}",
             textAlign: TextAlign.right,
             style: const TextStyle(
               fontSize: 26,
@@ -869,19 +1114,19 @@ class _AdDetailPageState extends State<AdDetailPage> {
           Divider(color: Colors.grey.shade300),
           detailLine(
             icon: Icons.location_on,
-            title: "موقعیت",
+            title: T.tr("location"),
             value: location,
           ),
           detailLine(
             icon: Icons.category,
-            title: "دسته‌بندی",
-            value: subCategory,
+            title: T.tr("category"),
+            value: trValue(subCategory),
             color: color,
           ),
           detailLine(
             icon: Icons.phone,
-            title: "شماره تماس",
-            value: phone.isEmpty ? "نامشخص" : maskedPhone(phone),
+            title: T.tr("phone_number"),
+            value: phone.isEmpty ? T.tr("unknown") : maskedPhone(phone),
           ),
         ],
       ),
@@ -890,6 +1135,8 @@ class _AdDetailPageState extends State<AdDetailPage> {
 
   Widget categoryBadge(String mainCategory, String subCategory) {
     final color = categoryColor(mainCategory);
+    final mainText = trValue(mainCategory);
+    final subText = trValue(subCategory);
 
     return Container(
       margin: const EdgeInsets.fromLTRB(14, 8, 14, 0),
@@ -913,9 +1160,7 @@ class _AdDetailPageState extends State<AdDetailPage> {
           const SizedBox(width: 12),
           Expanded(
             child: Text(
-              mainCategory.isEmpty
-                  ? subCategory
-                  : "$mainCategory  •  $subCategory",
+              mainCategory.isEmpty ? subText : "$mainText  •  $subText",
               textAlign: TextAlign.right,
               style: TextStyle(
                 color: color,
@@ -949,10 +1194,10 @@ class _AdDetailPageState extends State<AdDetailPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         textDirection: TextDirection.rtl,
         children: [
-          const Text(
-            "توضیحات",
+          Text(
+            T.tr("description"),
             textAlign: TextAlign.right,
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
           Text(
@@ -987,10 +1232,10 @@ class _AdDetailPageState extends State<AdDetailPage> {
         textDirection: TextDirection.rtl,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            "مشخصات آگهی",
+          Text(
+            T.tr("ad_specs"),
             textAlign: TextAlign.right,
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 14),
           Wrap(
@@ -1048,24 +1293,24 @@ class _AdDetailPageState extends State<AdDetailPage> {
         return Directionality(
           textDirection: TextDirection.rtl,
           child: AlertDialog(
-            title: const Text("گزارش آگهی"),
+            title: Text(T.tr("report_ad")),
             content: TextField(
               controller: controller,
               maxLines: 4,
-              decoration: const InputDecoration(
-                labelText: "دلیل گزارش",
-                hintText: "مثلاً کلاهبرداری، آگهی تکراری، محتوای نامناسب...",
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: T.tr("report_reason"),
+                hintText: T.tr("report_hint"),
+                border: const OutlineInputBorder(),
               ),
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text("لغو"),
+                child: Text(T.tr("cancel")),
               ),
               FilledButton(
                 onPressed: () => Navigator.pop(context, controller.text.trim()),
-                child: const Text("ارسال"),
+                child: Text(T.tr("send")),
               ),
             ],
           ),
@@ -1084,7 +1329,7 @@ class _AdDetailPageState extends State<AdDetailPage> {
         reporterPhone: Session.userContact,
       );
 
-      showMessage("گزارش شما ارسال شد");
+      showMessage(T.tr("report_sent"));
     } catch (e) {
       showMessage(e.toString().replaceAll("Exception:", "").trim());
     } finally {
@@ -1103,7 +1348,7 @@ class _AdDetailPageState extends State<AdDetailPage> {
               Expanded(
                 child: ElevatedButton.icon(
                   icon: const Icon(Icons.phone),
-                  label: const Text("تماس با فروشنده"),
+                  label: Text(T.tr("call_seller")),
                   style: ElevatedButton.styleFrom(
                     minimumSize: const Size.fromHeight(54),
                     shape: RoundedRectangleBorder(
@@ -1117,7 +1362,7 @@ class _AdDetailPageState extends State<AdDetailPage> {
               Expanded(
                 child: FilledButton.icon(
                   icon: const Icon(Icons.chat),
-                  label: const Text("چت"),
+                  label: Text(T.tr("chat")),
                   style: FilledButton.styleFrom(
                     minimumSize: const Size.fromHeight(54),
                     shape: RoundedRectangleBorder(
@@ -1146,9 +1391,9 @@ class _AdDetailPageState extends State<AdDetailPage> {
             child: OutlinedButton.icon(
               onPressed: actionLoading ? null : showReportDialog,
               icon: const Icon(Icons.report_problem, color: Colors.red),
-              label: const Text(
-                "گزارش آگهی",
-                style: TextStyle(
+              label: Text(
+                T.tr("report_ad"),
+                style: const TextStyle(
                   color: Colors.red,
                   fontWeight: FontWeight.bold,
                 ),
@@ -1292,10 +1537,7 @@ class _FullImageViewerState extends State<FullImageViewer> {
               right: 0,
               child: Center(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 8,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   decoration: BoxDecoration(
                     color: Colors.black87,
                     borderRadius: BorderRadius.circular(18),
